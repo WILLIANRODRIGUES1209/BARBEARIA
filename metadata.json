@@ -1,0 +1,6 @@
+{
+  "name": "Barbearia do Fenômeno",
+  "description": "Sistema de gestão para barbearia com agendamento online para clientes, controle de estoque e controle financeiro.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
