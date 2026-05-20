@@ -20,6 +20,7 @@ import AdminPDV from './pages/admin/AdminPDV';
 import LandingPage from './pages/LandingPage';
 import WelcomeDashboard from './pages/admin/WelcomeDashboard';
 import InstallPrompt from './components/InstallPrompt';
+import NotificationPrompt from './components/NotificationPrompt';
 
 const AdminLayout = ({ children, onLogout }: { children: React.ReactNode, onLogout: () => void }) => {
   const location = useLocation();
@@ -173,6 +174,7 @@ export default function App() {
       <AppProvider>
         <BrowserRouter>
           <InstallPrompt />
+          <NotificationPrompt />
           <Routes>
             {/* Client Routes */}
             <Route path="/" element={<LandingPage />} />

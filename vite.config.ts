@@ -13,6 +13,9 @@ export default defineConfig(({mode}) => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
+        workbox: {
+          importScripts: ['/push-sw.js']
+        },
         devOptions: {
           enabled: true
         },

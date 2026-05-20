@@ -174,6 +174,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           ...prev,
           appointments: prev.appointments.filter(a => a.id !== tempId)
         }));
+      } else {
+        // Find service name
+        const service = state.services.find(s => s.id === appt.serviceId);
+        // Format time properly to send to notify
+        const dateObj = new Date(appt.date);
+        
+        // Fire notification in background
+        fetch('/api/notify-booking', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            clientName: appt.clientName,
+            serviceName: service ? service.name : 'Serviço',
+            date: dateObj.toLocaleDateString('pt-BR'),
+            time: dateObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+          })
+        }).catch(err => console.error(err));
       }
     } catch (err) {
       console.error(err);
