@@ -47,7 +47,7 @@ const AdminLayout = ({ children, onLogout }: { children: React.ReactNode, onLogo
             </div>
             <span className="truncate">{barbearia?.nome || 'Carregando...'}</span>
           </div>
-          <p className="text-[10px] uppercase tracking-[0.2em] text-[#555] mt-2">Premium Barbershop Management</p>
+          <p className="text-[10px] uppercase tracking-[0.2em] text-[#555] mt-2">PROFISSIONALIZE SUA BARBEARIA</p>
         </div>
         <nav className="flex-1 px-4 space-y-2">
           {navItems.map((item) => {

@@ -234,33 +234,76 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addProduct = async (prod: Omit<Product, 'id'>) => {
     if (!barbearia) return;
-    await supabase.from('produtos').insert({
-      barbearia_id: barbearia.id,
-      nome: prod.name,
-      preco: prod.price,
-      quantidade: prod.quantity
-    });
+
+    // Optimistic update
+    const tempId = `temp-${Date.now()}`;
+    setState(prev => ({
+      ...prev,
+      products: [...prev.products, { ...prod, id: tempId }]
+    }));
+
+    try {
+      const { error } = await supabase.from('produtos').insert({
+        barbearia_id: barbearia.id,
+        nome: prod.name,
+        preco: prod.price,
+        quantidade: prod.quantity
+      });
+      if (error) {
+        setState(prev => ({ ...prev, products: prev.products.filter(p => p.id !== tempId) }));
+      }
+    } catch (err) {
+      console.error(err);
+      setState(prev => ({ ...prev, products: prev.products.filter(p => p.id !== tempId) }));
+    }
   };
 
   const updateProduct = async (id: string, updates: Partial<Product>) => {
     if (!barbearia) return;
+
+    // Optimistic update
+    setState(prev => ({
+      ...prev,
+      products: prev.products.map(p => p.id === id ? { ...p, ...updates } : p)
+    }));
+
     const mappedUpdates: any = {};
     if (updates.name) mappedUpdates.nome = updates.name;
     if (updates.price) mappedUpdates.preco = updates.price;
-    if (updates.quantity) mappedUpdates.quantidade = updates.quantity;
+    if (updates.quantity !== undefined) mappedUpdates.quantidade = updates.quantity;
     
-    await supabase.from('produtos').update(mappedUpdates).eq('id', id);
+    try {
+      await supabase.from('produtos').update(mappedUpdates).eq('id', id);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const addTransaction = async (t: Omit<Transaction, 'id'>) => {
     if (!barbearia) return;
-    await supabase.from('transacoes').insert({
-      barbearia_id: barbearia.id,
-      tipo: t.type === 'INCOME' ? 'ENTRADA' : 'SAIDA',
-      valor: t.amount,
-      descricao: t.description,
-      data: t.date || new Date().toISOString()
-    });
+
+    // Optimistic update
+    const tempId = `temp-${Date.now()}`;
+    setState(prev => ({
+      ...prev,
+      transactions: [...prev.transactions, { ...t, id: tempId, date: t.date || new Date().toISOString() }]
+    }));
+
+    try {
+      const { error } = await supabase.from('transacoes').insert({
+        barbearia_id: barbearia.id,
+        tipo: t.type === 'INCOME' ? 'ENTRADA' : 'SAIDA',
+        valor: t.amount,
+        descricao: t.description,
+        data: t.date || new Date().toISOString()
+      });
+      if (error) {
+        setState(prev => ({ ...prev, transactions: prev.transactions.filter(tr => tr.id !== tempId) }));
+      }
+    } catch (err) {
+      console.error(err);
+      setState(prev => ({ ...prev, transactions: prev.transactions.filter(tr => tr.id !== tempId) }));
+    }
   };
 
   const updateServices = async (services: Service[]) => {

@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../../context/AppContext';
-import { Plus, TrendingUp, TrendingDown, DollarSign, X, Bot, Send, Loader2, Calendar as CalendarIcon } from 'lucide-react';
+import { Plus, TrendingUp, TrendingDown, DollarSign, X, Calendar as CalendarIcon } from 'lucide-react';
 import { format, parseISO, startOfMonth, endOfMonth, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 
 export default function AdminFinanceiro() {
@@ -12,7 +12,6 @@ export default function AdminFinanceiro() {
 
   const [chatInput, setChatInput] = useState('');
   const [chatResponse, setChatResponse] = useState('');
-  const [isSendingChat, setIsSendingChat] = useState(false);
 
   const filteredTransactions = useMemo(() => {
     const now = new Date();
@@ -44,34 +43,17 @@ export default function AdminFinanceiro() {
     setNewTx({ description: '', amount: 0, type: 'INCOME' });
   };
 
-  const handleChatSubmit = async (e: React.FormEvent) => {
+  const handleQuickExpense = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!chatInput.trim()) return;
-    
-    setIsSendingChat(true);
+    if (!chatInput.trim() || isNaN(Number(chatResponse)) || Number(chatResponse) <= 0) return;
+    addTransaction({
+      description: chatInput,
+      amount: Number(chatResponse),
+      type: 'EXPENSE',
+      date: new Date().toISOString()
+    });
+    setChatInput('');
     setChatResponse('');
-    
-    try {
-      const res = await fetch('/api/agent/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: chatInput })
-      });
-      
-      const data = await res.json();
-      
-      if (!res.ok) {
-        throw new Error(data.error || "Ocorreu um erro no servidor.");
-      }
-      
-      setChatResponse(data.replyText || "Lançamento processado.");
-      setChatInput('');
-    } catch (err) {
-      console.error(err);
-      setChatResponse(err instanceof Error ? err.message : "Ocorreu um erro ao comunicar com a IA.");
-    } finally {
-      setIsSendingChat(false);
-    }
   };
 
   const sortedTransactions = [...filteredTransactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -132,39 +114,40 @@ export default function AdminFinanceiro() {
 
       <div className="bg-[#121212] p-6 rounded-2xl shadow-xl border border-[#222]">
         <div className="flex items-center gap-3 mb-4">
-          <div className="bg-[#2563EB22] text-[#2563EB] p-2 rounded">
-            <Bot size={20} />
+          <div className="bg-[#FF3D0022] text-[#FF3D00] p-2 rounded">
+            <TrendingDown size={20} />
           </div>
-          <h2 className="text-lg font-medium text-white">Assistente Financeiro</h2>
+          <h2 className="text-lg font-medium text-white">Lançamento Rápido de Gastos</h2>
         </div>
         <p className="text-xs text-[#888] mb-4">
-          Digite seus gastos ou ganhos como se estivesse conversando. Ex: "Gastei 50 reais em navalha hoje"
+          Registre gastos rápidos como cremes, navalhas ou qualquer outro produto da barbearia.
         </p>
         
-        <form onSubmit={handleChatSubmit} className="flex gap-4">
+        <form onSubmit={handleQuickExpense} className="flex gap-4 flex-wrap sm:flex-nowrap">
           <input 
             type="text"
             value={chatInput}
             onChange={e => setChatInput(e.target.value)}
-            disabled={isSendingChat}
-            placeholder="O que você gastou ou recebeu?"
-            className="flex-1 px-4 py-3 bg-[#1A1A1A] border border-[#333] text-white rounded-xl focus:border-[#2563EB] focus:outline-none transition-colors"
+            placeholder="Produto Ex: Creme, Navalha..."
+            className="flex-1 px-4 py-3 bg-[#1A1A1A] border border-[#333] text-white rounded-xl focus:border-[#FF3D00] focus:outline-none transition-colors"
+            required
+          />
+          <input 
+            type="number"
+            value={chatResponse}
+            onChange={e => setChatResponse(e.target.value)}
+            placeholder="Valor (R$)"
+            step="0.01" min="0.01"
+            className="w-full sm:w-32 px-4 py-3 bg-[#1A1A1A] border border-[#333] text-white rounded-xl focus:border-[#FF3D00] focus:outline-none transition-colors"
+            required
           />
           <button 
             type="submit" 
-            disabled={isSendingChat || !chatInput.trim()}
-            className="bg-[#2563EB] text-white font-bold p-3 rounded-xl hover:bg-[#1D4ED8] transition-colors disabled:opacity-50 flex items-center justify-center min-w-[56px]"
+            className="w-full sm:w-auto bg-[#FF3D00] text-white font-bold px-6 py-3 rounded-xl hover:bg-[#D84315] transition-colors"
           >
-            {isSendingChat ? <Loader2 size={24} className="animate-spin" /> : <Send size={20} />}
+            Lançar Gasto
           </button>
         </form>
-
-        {chatResponse && (
-          <div className="mt-4 p-4 bg-[#1A1A1A] border border-[#333] rounded-xl flex gap-3">
-            <Bot size={20} className="text-[#2563EB] shrink-0 mt-0.5" />
-            <p className="text-sm text-[#E0E0E0]">{chatResponse}</p>
-          </div>
-        )}
       </div>
 
       {isAdding && (
