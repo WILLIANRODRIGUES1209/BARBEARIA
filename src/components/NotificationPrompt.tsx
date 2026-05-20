@@ -35,10 +35,18 @@ export default function NotificationPrompt() {
         applicationServerKey: convertedVapidKey
       });
 
+      let deviceId = localStorage.getItem('deviceId');
+      if (!deviceId) {
+        deviceId = Math.random().toString(36).substring(2, 15);
+        localStorage.setItem('deviceId', deviceId);
+      }
+
+      const role = window.location.pathname.startsWith('/admin') ? 'admin' : 'client';
+
       await fetch('/api/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(subscription)
+        body: JSON.stringify({ subscription, role, deviceId })
       });
       
     } catch (err) {

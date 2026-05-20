@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { AppState, Appointment, Product, Transaction, Service, Client, Barber } from '../types';
 import { supabase } from '../supabase';
 import { useBarbearia } from './BarbeariaContext';
+import toast from 'react-hot-toast';
 
 export interface AppContextType {
   state: AppState;
@@ -126,8 +127,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     
     loadData();
 
+    const playBeep = () => {
+      try {
+        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // A5
+        gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        oscillator.start();
+        gainNode.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.5);
+        oscillator.stop(audioCtx.currentTime + 0.5);
+      } catch (e) {
+        console.error(e);
+      }
+    };
+
     const channel = supabase.channel(`barbearia-${barbearia.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'agendamentos', filter: `barbearia_id=eq.${barbearia.id}` }, () => loadData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'agendamentos', filter: `barbearia_id=eq.${barbearia.id}` }, (payload: any) => {
+          if (payload.eventType === 'INSERT') {
+             // Let's only toast if it's admin page (we can check pathname or just play it always and let the context be global, 
+             // but user requested it for the admin. If pathname has /admin, we beep).
+             if (window.location.pathname.startsWith('/admin')) {
+               toast.success(`Novo agendamento: ${payload.new.cliente_nome}!`, {
+                 duration: 6000,
+                 icon: '🚀'
+               });
+               playBeep();
+             }
+          } else if (payload.eventType === 'UPDATE' && payload.new.status === 'CANCELADO') {
+             if (window.location.pathname.startsWith('/admin')) {
+               toast.error(`Agendamento cancelado: ${payload.new.cliente_nome}`, {
+                 duration: 6000
+               });
+               playBeep();
+             }
+          }
+          loadData();
+      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'produtos', filter: `barbearia_id=eq.${barbearia.id}` }, () => loadData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'transacoes', filter: `barbearia_id=eq.${barbearia.id}` }, () => loadData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'servicos', filter: `barbearia_id=eq.${barbearia.id}` }, () => loadData())
@@ -188,7 +227,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             clientName: appt.clientName,
             serviceName: service ? service.name : 'Serviço',
             date: dateObj.toLocaleDateString('pt-BR'),
-            time: dateObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+            time: dateObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+            deviceId: typeof window !== 'undefined' ? localStorage.getItem('deviceId') : undefined
           })
         }).catch(err => console.error(err));
       }
@@ -247,6 +287,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       'CANCELLED': 'CANCELADO'
     };
     await supabase.from('agendamentos').update({ status: statusMap[status] || status }).eq('id', id);
+
+    if (status === 'CANCELLED') {
+       const appt = state.appointments.find(a => a.id === id);
+       if (appt) {
+         const dateObj = new Date(appt.date);
+         fetch('/api/notify-cancel', {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify({
+             clientName: appt.clientName,
+             date: dateObj.toLocaleDateString('pt-BR'),
+             time: dateObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+           })
+         }).catch(console.error);
+       }
+    }
   };
 
   const addProduct = async (prod: Omit<Product, 'id'>) => {

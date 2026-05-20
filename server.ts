@@ -39,8 +39,8 @@ async function startServer() {
 
   // Subscribe to push notifications
   app.post("/api/subscribe", (req, res) => {
-    const subscription = req.body;
-    subscriptions.push(subscription);
+    const { subscription, role, deviceId } = req.body;
+    subscriptions.push({ subscription, role, deviceId });
     res.status(201).json({ success: true });
   });
 
@@ -51,7 +51,7 @@ async function startServer() {
     
     let promises = [];
     for (let i = 0; i < subscriptions.length; i++) {
-        const sub = subscriptions[i];
+        const sub = subscriptions[i].subscription;
         promises.push(
             webpush.sendNotification(sub, payload).catch(err => {
                 console.error("Error sending notification, removing subscription", err);
@@ -65,13 +65,17 @@ async function startServer() {
   });
 
   // Helper to send push
-  const sendPush = async (title: string, body: string) => {
+  const sendPush = async (title: string, body: string, targetRole: string | null = null, targetDeviceId: string | null = null) => {
     const payload = JSON.stringify({ title, body, icon: '/icon-192x192.png' });
     let promises = [];
     for (let i = 0; i < subscriptions.length; i++) {
-        const sub = subscriptions[i];
+        const subItem = subscriptions[i];
+        
+        if (targetRole && subItem.role !== targetRole) continue;
+        if (targetDeviceId && subItem.deviceId !== targetDeviceId) continue;
+
         promises.push(
-            webpush.sendNotification(sub, payload).catch(err => {
+            webpush.sendNotification(subItem.subscription, payload).catch(err => {
                 console.error("Error sending notification, removing subscription", err);
                 subscriptions.splice(i, 1);
                 i--;
@@ -81,7 +85,7 @@ async function startServer() {
     await Promise.all(promises);
   };
 
-  // Cron job for 1-hour reminders
+  // Crons that run every minute
   setInterval(async () => {
     try {
       if (!supabaseUrl) return;
@@ -89,36 +93,84 @@ async function startServer() {
       const now = new Date();
       const inOneHour = new Date(now.getTime() + 60 * 60 * 1000);
       
-      // We check for items that are matching EXACTLY this minute + 1 hour (to avoid spamming)
-      // Since it runs every 60s, checking exact match in minutes is best
-      const isoString = inOneHour.toISOString(); // e.g., 2026-05-20T18:17:19.000Z
-      // Format as YYYY-MM-DDTHH:mm to match how we store it in ClientBooking
-      const targetTimeStr = isoString.substring(0, 16); 
-
-      // Instead of querying exact string to avoid timezone misses, let's just query everything >= now and <= in 65 minutes
-      // Supabase timezone is UTC usually.
-      // Easiest is to fetch all PENDING and do logic in memory
-      
       const { data, error } = await supabase.from('agendamentos').select('*').eq('status', 'PENDENTE');
       
       if (data && data.length > 0) {
         data.forEach(appt => {
-           // appt.data_hora looks like "2026-05-20T17:00" string
            const apptDate = new Date(appt.data_hora);
            const diffMinutes = (apptDate.getTime() - now.getTime()) / 60000;
            
-           // If it's between 59 and 61 minutes from now, send notification!
-           if (diffMinutes > 58 && diffMinutes < 62 && !appt.notified) {
-               console.log("Sending 1 hour reminder for:", appt.cliente_nome);
+           // Lembrete Anti-Esquecimento (2 horas antes ou 1 hora, conforme logica - deixarei 1 hr pois foi como fiz antes, mas posso ajustar para 2 horas como pedido: "2 horas antes")
+           // Let's adjust to 2 hours
+           const diffHours = diffMinutes / 60;
+           
+           if (diffHours > 1.9 && diffHours < 2.1 && !appt.notified_2h) {
+               console.log("Sending 2 hour reminder for:", appt.cliente_nome);
+               
+               const hora = apptDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
+
                sendPush(
                  "Lembrete de Agendamento!", 
-                 `Olá! Seu agendamento de ${appt.cliente_nome} é daqui a 1 hora.`
+                 `Fala, ${appt.cliente_nome}! Tudo certo? Passando para lembrar do seu horário hoje às ${hora}. Se precisar remarcar, avise a gente com antecedência. Até logo!`
                );
-               // simple in-memory mark so we don't spam if cron fires twice in same minute range
-               appt.notified = true;
+               appt.notified_2h = true;
            }
         });
       }
+
+      // Check daily routines at 20:00 exact
+      // Using UTC time to BRT approximation, but since server time might vary, we should check in Sao_Paulo time
+      const formatter = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
+      const currentHm = formatter.format(now);
+      
+      if (currentHm === '20:00' && !global.notifiedEvening) {
+         global.notifiedEvening = true;
+         // Resumo do Dia Seguinte (Fechamento da Agenda)
+         const amarraDeAmanha = new Date(now);
+         amarraDeAmanha.setDate(amarraDeAmanha.getDate() + 1);
+         const amarraString = amarraDeAmanha.toISOString().substring(0, 10);
+
+         const { data: agendaAmanha } = await supabase.from('agendamentos')
+            .select('*')
+            .eq('status', 'PENDENTE')
+            .like('data_hora', `${amarraString}%`)
+            .order('data_hora', { ascending: true });
+
+         if (agendaAmanha && agendaAmanha.length > 0) {
+            const first = new Date(agendaAmanha[0].data_hora).toLocaleTimeString('pt-BR', { hour: '2-digit', minute:'2-digit' });
+            sendPush(
+              "Fechamento da Agenda",
+              `Sua agenda de amanhã está pronta! 📅 Você tem ${agendaAmanha.length} atendimentos confirmados. O primeiro começa às ${first} com ${agendaAmanha[0].cliente_nome}. Boa noite de descanso!`
+            );
+         }
+
+         // Recorrência Otimizada - 15 days ago
+         const fifteenDaysAgo = new Date(now);
+         fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
+         const fifteenString = fifteenDaysAgo.toISOString().substring(0, 10);
+
+         const { data: concluded15Days } = await supabase.from('agendamentos')
+            .select('*')
+            .eq('status', 'CONCLUIDO')
+            .like('data_hora', `${fifteenString}%`);
+
+         if (concluded15Days && concluded15Days.length > 0) {
+            // we should group by client ideally to not spam
+            const sentClients = new Set();
+            concluded15Days.forEach(a => {
+               if(!sentClients.has(a.cliente_telefone)) {
+                 sendPush(
+                   "Tá na hora de cortar!",
+                   `Fala, ${a.cliente_nome}! O visual já está completando 2 semanas, a régua já deve estar sumindo... 😂 Que tal garantir o seu horário para essa semana antes que a agenda lote?`
+                 );
+                 sentClients.add(a.cliente_telefone);
+               }
+            });
+         }
+      } else if (currentHm !== '20:00') {
+         global.notifiedEvening = false;
+      }
+
     } catch (e) {
       console.error(e);
     }
@@ -205,21 +257,26 @@ async function startServer() {
     }
   });
 
-  // API Route for sending WhatsApp notifications explicitly
-  // e.g., called when a booking is created successfully on the frontend.
+  // API Route for sending notifications explicitly
+  // called when a booking is created successfully on the frontend.
   app.post("/api/notify-booking", async (req, res) => {
     try {
-      const { clientName, serviceName, date, time } = req.body;
+      const { clientName, serviceName, date, time, deviceId } = req.body;
       const adminWhatsApp = process.env.ADMIN_WHATSAPP_NUMBER;
       const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
       const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
       const twilioPhone = process.env.TWILIO_PHONE_NUMBER;
 
-      const msg = `Novo agendamento!\nCliente: ${clientName}\nCorte: ${serviceName}\nHorário: ${date} às ${time}`;
+      const adminMsg = `Novo cliente na área! 🚀 ${clientName} agendou ${serviceName} para o dia ${date} às ${time}.`;
+      const clientMsg = `Agendamento Confirmado! ✂️ Seu horário para ${serviceName} está garantido no dia ${date} às ${time}.`;
 
-      // Send Push notification to all subscribed clients (or admin)
-      // Ideally we should filter subscriptions by role, but for this MVP we broadcast
-      await sendPush("Novo Agendamento Recebido!", msg);
+      // Send Push notification to Barber (role = 'admin')
+      await sendPush("Novo Agendamento na Agenda", adminMsg, 'admin');
+
+      // Send Push notification to Client (role = 'client', deviceId)
+      if (deviceId) {
+        await sendPush("Agendamento Confirmado", clientMsg, 'client', deviceId);
+      }
 
       if (!adminWhatsApp || !twilioAccountSid || !twilioAuthToken || !twilioPhone) {
         console.warn("Missing Twilio configuration, skipping WhatsApp notification.");
@@ -229,10 +286,26 @@ async function startServer() {
       const client = twilio(twilioAccountSid, twilioAuthToken);
 
       await client.messages.create({
-        body: msg,
+        body: adminMsg,
         from: `whatsapp:${twilioPhone}`,
         to: `whatsapp:${adminWhatsApp}`
       });
+
+      res.status(200).json({ success: true });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ success: false, error: String(err) });
+    }
+  });
+
+  // API Route for sending cancellation notifications
+  app.post("/api/notify-cancel", async (req, res) => {
+    try {
+      const { clientName, date, time } = req.body;
+      
+      const adminMsg = `Atenção: O cliente ${clientName} cancelou o horário das ${time} do dia ${date}. Sua agenda abriu para esse período.`;
+      
+      await sendPush("Cancelamento de Última Hora", adminMsg, 'admin');
 
       res.status(200).json({ success: true });
     } catch (err) {
