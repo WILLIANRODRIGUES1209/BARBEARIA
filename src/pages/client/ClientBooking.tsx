@@ -252,26 +252,27 @@ export default function ClientBooking() {
                 <div className="grid grid-cols-3 gap-3">
                   {availableTimes.map(time => {
                     const isSelected = selectedTime === time;
+                    const timeString = `${format(selectedDate, 'yyyy-MM-dd')}T${time}`;
                     const isBooked = state.appointments.some(a => 
                       a.status !== 'CANCELLED' && 
-                      a.time === time && 
-                      a.date && a.date.startsWith(format(selectedDate, 'yyyy-MM-dd')) &&
-                      a.barberId === selectedBarber // Filter by barber as well
+                      a.date && a.date.startsWith(timeString) &&
+                      a.barberId === selectedBarber
                     );
                     return (
                       <button
                         key={time}
                         disabled={isBooked}
                         onClick={() => setSelectedTime(time)}
-                        className={`p-3 rounded-xl font-medium border-2 transition-all ${
+                        className={`p-3 rounded-xl font-medium border-2 transition-all flex flex-col items-center justify-center gap-1 ${
                           isSelected 
                             ? 'border-[#C5A059] bg-[#1A1A1A] text-[#C5A059]' 
                             : isBooked
-                              ? 'border-[#222] bg-[#121212] flex items-center justify-center opacity-40 cursor-not-allowed line-through text-[#555]'
+                              ? 'border-red-900/30 bg-red-950/20 opacity-70 cursor-not-allowed text-red-500'
                               : 'border-[#222] bg-[#121212] text-[#777] hover:border-[#333]'
                         }`}
                       >
-                        {time}
+                        <span>{time}</span>
+                        {isBooked && <span className="text-[9px] uppercase tracking-widest font-bold">Ocupado</span>}
                       </button>
                     )
                   })}
