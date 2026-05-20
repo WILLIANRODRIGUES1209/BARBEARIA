@@ -19,6 +19,7 @@ import AdminRelatorios from './pages/admin/AdminRelatorios';
 import AdminPDV from './pages/admin/AdminPDV';
 import LandingPage from './pages/LandingPage';
 import WelcomeDashboard from './pages/admin/WelcomeDashboard';
+import InstallPrompt from './components/InstallPrompt';
 
 const AdminLayout = ({ children, onLogout }: { children: React.ReactNode, onLogout: () => void }) => {
   const location = useLocation();
@@ -171,6 +172,7 @@ export default function App() {
     <BarbeariaProvider>
       <AppProvider>
         <BrowserRouter>
+          <InstallPrompt />
           <Routes>
             {/* Client Routes */}
             <Route path="/" element={<LandingPage />} />
