@@ -1,32 +1,67 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Lock, LogIn, Mail } from 'lucide-react';
+import { Lock, LogIn, Mail, Building, KeyRound, Scissors } from 'lucide-react';
 import { supabase } from '../../supabase';
+import { useBarbearia } from '../../context/BarbeariaContext';
 
-export default function AdminLogin({ onLogin }: { onLogin: () => void }) {
+export default function AdminLogin({ onLogin }: { onLogin: (role: 'ADMIN' | 'BARBEIRO', barbeiroId: string | null) => void }) {
+  const [loginType, setLoginType] = useState<'ADMIN' | 'BARBEIRO'>('ADMIN');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [slug, setSlug] = useState('');
+  const [pin, setPin] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { fetchBySlug } = useBarbearia();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setErrorMsg('');
     
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    if (loginType === 'ADMIN') {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-    setLoading(false);
+      setLoading(false);
 
-    if (error) {
-      setErrorMsg('Login falhou: ' + error.message);
-    } else if (data.session) {
-      onLogin(); // Tell App.tsx that we logged in
-      navigate('/admin/boas-vindas');
+      if (error) {
+        setErrorMsg('Login falhou: ' + error.message);
+      } else if (data.session) {
+        onLogin('ADMIN', null);
+        navigate('/admin/boas-vindas');
+      }
+    } else {
+      // Login Barbeiro
+      try {
+        const { data: bData, error: bError } = await supabase.from('barbearias').select('id').eq('slug', slug).single();
+        if (bError || !bData) {
+          throw new Error('Barbearia não encontrada.');
+        }
+
+        const { data: barb, error: barbError } = await supabase.from('barbeiros')
+          .select('id, nome')
+          .eq('barbearia_id', bData.id)
+          .eq('pin', pin)
+          .single();
+
+        if (barbError || !barb) {
+          throw new Error('PIN incorreto ou não encontrado.');
+        }
+
+        // We fetch the barbearia to populate context
+        await fetchBySlug(slug);
+
+        setLoading(false);
+        onLogin('BARBEIRO', barb.id);
+        navigate('/admin/agenda'); // Barbeiros go direct to agenda
+      } catch (err: any) {
+        setLoading(false);
+        setErrorMsg(err.message || 'Erro ao fazer login.');
+      }
     }
   };
 
@@ -39,35 +74,75 @@ export default function AdminLogin({ onLogin }: { onLogin: () => void }) {
           </div>
         </div>
         
-        <h1 className="text-2xl font-bold text-white text-center mb-2 tracking-tight">Acesso Portal Barbearia</h1>
-        <p className="text-[#777] text-center mb-8 text-sm">Insira suas credenciais para continuar</p>
+        <h1 className="text-2xl font-bold text-white text-center mb-6 tracking-tight">Acesso Sistema</h1>
+        
+        <div className="flex bg-[#1A1A1A] p-1 rounded-xl mb-8">
+          <button
+            onClick={() => setLoginType('ADMIN')}
+            className={`flex-1 py-2 text-xs font-bold uppercase tracking-widest rounded-lg transition-all ${loginType === 'ADMIN' ? 'bg-[#C5A059] text-[#0A0A0A]' : 'text-[#777] hover:text-white'}`}
+          >
+            Dono (Admin)
+          </button>
+          <button
+            onClick={() => setLoginType('BARBEIRO')}
+            className={`flex-1 py-2 text-xs font-bold uppercase tracking-widest rounded-lg transition-all ${loginType === 'BARBEIRO' ? 'bg-[#C5A059] text-[#0A0A0A]' : 'text-[#777] hover:text-white'}`}
+          >
+            Barbeiro
+          </button>
+        </div>
 
         <form onSubmit={handleLogin} className="space-y-4">
-          <div className="relative">
-            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-[#777]" size={20} />
-            <input
-              type="email"
-              placeholder="E-mail"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full pl-12 pr-4 py-4 bg-[#1A1A1A] border border-[#333] text-white rounded-xl focus:border-[#C5A059] focus:outline-none transition-colors text-sm"
-              required
-            />
-          </div>
-          <div>
-            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-[#777]" size={20} />
-            <div className="relative">
-              <input
-                type="password"
-                placeholder="Senha"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className={`w-full pl-12 pr-4 py-4 bg-[#1A1A1A] border ${errorMsg ? 'border-red-500' : 'border-[#333]'} text-white rounded-xl focus:border-[#C5A059] focus:outline-none transition-colors text-sm`}
-                required
-              />
-              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-[#777]" size={20} />
-            </div>
-          </div>
+          {loginType === 'ADMIN' ? (
+            <>
+              <div className="relative">
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-[#777]" size={20} />
+                <input
+                  type="email"
+                  placeholder="Seu E-mail"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full pl-12 pr-4 py-4 bg-[#1A1A1A] border border-[#333] text-white rounded-xl focus:border-[#C5A059] focus:outline-none transition-colors text-sm"
+                  required
+                />
+              </div>
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-[#777]" size={20} />
+                <input
+                  type="password"
+                  placeholder="Sua Senha"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className={`w-full pl-12 pr-4 py-4 bg-[#1A1A1A] border ${errorMsg ? 'border-red-500' : 'border-[#333]'} text-white rounded-xl focus:border-[#C5A059] focus:outline-none transition-colors text-sm`}
+                  required
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="relative">
+                <Building className="absolute left-4 top-1/2 -translate-y-1/2 text-[#777]" size={20} />
+                <input
+                  type="text"
+                  placeholder="Link da Barbearia (ex: central-barber)"
+                  value={slug}
+                  onChange={(e) => setSlug(e.target.value)}
+                  className="w-full pl-12 pr-4 py-4 bg-[#1A1A1A] border border-[#333] text-white rounded-xl focus:border-[#C5A059] focus:outline-none transition-colors text-sm"
+                  required
+                />
+              </div>
+              <div className="relative">
+                <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 text-[#777]" size={20} />
+                <input
+                  type="password"
+                  placeholder="PIN de Acesso"
+                  value={pin}
+                  onChange={(e) => setPin(e.target.value)}
+                  className={`w-full pl-12 pr-4 py-4 bg-[#1A1A1A] border ${errorMsg ? 'border-red-500' : 'border-[#333]'} text-white rounded-xl focus:border-[#C5A059] focus:outline-none transition-colors text-sm`}
+                  required
+                />
+              </div>
+            </>
+          )}
           
           {errorMsg && (
              <p className="text-red-500 text-xs mt-2 text-center">{errorMsg}</p>

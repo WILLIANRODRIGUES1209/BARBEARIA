@@ -20,6 +20,8 @@ export type Barber = {
   phone?: string;
   specialties?: string;
   active: boolean;
+  comissao?: number;
+  pin?: string;
 };
 
 export type Appointment = {

@@ -6,48 +6,36 @@ import { Barber } from '../../types';
 import { confirmUI } from '../../utils/confirmUI';
 
 export default function AdminBarbeiros() {
-  const { state, updateBarbers } = useAppContext();
+  const { state, addBarber, editBarber, deleteBarber } = useAppContext();
   
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  const [newBarber, setNewBarber] = useState({ name: '', phone: '', specialties: '', active: true });
-  const [editForm, setEditForm] = useState({ name: '', phone: '', specialties: '', active: true });
+  const [newBarber, setNewBarber] = useState<Omit<Barber, 'id'>>({ name: '', phone: '', specialties: '', active: true, comissao: 50, pin: '' });
+  const [editForm, setEditForm] = useState<Omit<Barber, 'id'>>({ name: '', phone: '', specialties: '', active: true, comissao: 50, pin: '' });
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newBarber.name) return;
     
-    const barber: Barber = {
-      id: Date.now().toString(),
-      name: newBarber.name,
-      phone: newBarber.phone,
-      specialties: newBarber.specialties,
-      active: newBarber.active,
-    };
-    
-    updateBarbers([...state.barbers, barber]);
+    addBarber(newBarber);
     setIsAdding(false);
-    setNewBarber({ name: '', phone: '', specialties: '', active: true });
+    setNewBarber({ name: '', phone: '', specialties: '', active: true, comissao: 50, pin: '' });
   };
 
   const startEdit = (b: Barber) => {
     setEditingId(b.id);
-    setEditForm({ name: b.name, phone: b.phone || '', specialties: b.specialties || '', active: b.active });
+    setEditForm({ name: b.name, phone: b.phone || '', specialties: b.specialties || '', active: b.active, comissao: b.comissao || 0, pin: b.pin || '' });
   };
 
   const handleUpdate = (id: string) => {
-    const updated = state.barbers.map(b => 
-      b.id === id ? { ...b, ...editForm } : b
-    );
-    updateBarbers(updated);
+    editBarber(id, editForm);
     setEditingId(null);
   };
 
   const handleDelete = (id: string) => {
     confirmUI('Tem certeza que deseja excluir este barbeiro?', () => {
-      const updated = state.barbers.filter(b => b.id !== id);
-      updateBarbers(updated);
+      deleteBarber(id);
     });
   };
 
@@ -97,6 +85,25 @@ export default function AdminBarbeiros() {
               className="w-full px-4 py-3 bg-[#1A1A1A] border border-[#333] text-white rounded focus:border-[#C5A059] focus:outline-none transition-colors"
             />
           </div>
+          <div>
+            <label className="block text-xs uppercase tracking-[0.1em] text-[#555] font-medium mb-2">Comissão (%)</label>
+            <input 
+              type="number" 
+              value={newBarber.comissao}
+              onChange={e => setNewBarber({...newBarber, comissao: Number(e.target.value)})}
+              className="w-full px-4 py-3 bg-[#1A1A1A] border border-[#333] text-white rounded focus:border-[#C5A059] focus:outline-none transition-colors"
+            />
+          </div>
+          <div>
+            <label className="block text-xs uppercase tracking-[0.1em] text-[#555] font-medium mb-2">PIN (Acesso)</label>
+            <input 
+              type="text" 
+              placeholder="Senha de acesso"
+              value={newBarber.pin}
+              onChange={e => setNewBarber({...newBarber, pin: e.target.value})}
+              className="w-full px-4 py-3 bg-[#1A1A1A] border border-[#333] text-white rounded focus:border-[#C5A059] focus:outline-none transition-colors"
+            />
+          </div>
           <div className="md:col-span-2 flex justify-end">
             <button type="submit" className="bg-[#C5A059] text-[#0A0A0A] font-bold text-xs uppercase tracking-widest px-6 py-3 rounded hover:bg-[#8E6D31] transition-colors">
               Salvar Barbeiro
@@ -111,7 +118,7 @@ export default function AdminBarbeiros() {
             <tr className="bg-[#0C0C0C] border-b border-[#222]">
               <th className="p-4 text-xs tracking-wider uppercase text-[#555] font-semibold">Barbeiro</th>
               <th className="p-4 text-xs tracking-wider uppercase text-[#555] font-semibold hidden md:table-cell">Contatos / Info</th>
-              <th className="p-4 text-xs tracking-wider uppercase text-[#555] font-semibold">Status</th>
+              <th className="p-4 text-xs tracking-wider uppercase text-[#555] font-semibold">Status / Acesso</th>
               <th className="p-4 text-xs tracking-wider uppercase text-[#555] font-semibold text-right">Ações</th>
             </tr>
           </thead>
@@ -158,18 +165,40 @@ export default function AdminBarbeiros() {
                 </td>
                 <td className="p-4">
                   {editingId === b.id ? (
-                    <select
-                      value={editForm.active ? 'true' : 'false'}
-                      onChange={e => setEditForm({ ...editForm, active: e.target.value === 'true' })}
-                      className="bg-[#1A1A1A] border border-[#333] text-white text-sm rounded focus:border-[#C5A059] focus:outline-none px-3 py-2"
-                    >
-                      <option value="true">Ativo</option>
-                      <option value="false">Inativo</option>
-                    </select>
+                    <div className="space-y-2">
+                      <select
+                        value={editForm.active ? 'true' : 'false'}
+                        onChange={e => setEditForm({ ...editForm, active: e.target.value === 'true' })}
+                        className="w-full bg-[#1A1A1A] border border-[#333] text-white text-sm rounded focus:border-[#C5A059] focus:outline-none px-3 py-2"
+                      >
+                        <option value="true">Ativo</option>
+                        <option value="false">Inativo</option>
+                      </select>
+                      <input 
+                        type="number" 
+                        value={editForm.comissao}
+                        placeholder="Comissão %"
+                        onChange={e => setEditForm({...editForm, comissao: Number(e.target.value)})}
+                        className="w-full px-3 py-2 bg-[#1A1A1A] border border-[#333] text-white text-sm rounded focus:border-[#C5A059] focus:outline-none"
+                      />
+                      <input 
+                        type="text" 
+                        value={editForm.pin}
+                        placeholder="PIN"
+                        onChange={e => setEditForm({...editForm, pin: e.target.value})}
+                        className="w-full px-3 py-2 bg-[#1A1A1A] border border-[#333] text-white text-sm rounded focus:border-[#C5A059] focus:outline-none"
+                      />
+                    </div>
                   ) : (
-                    <span className={`inline-flex items-center px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${b.active ? 'bg-[#00C85322] text-[#00C853]' : 'bg-[#FF3D0022] text-[#FF3D00]'}`}>
-                      {b.active ? 'Ativo' : 'Inativo'}
-                    </span>
+                    <div className="space-y-1">
+                      <div>
+                        <span className={`inline-flex items-center px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${b.active ? 'bg-[#00C85322] text-[#00C853]' : 'bg-[#FF3D0022] text-[#FF3D00]'}`}>
+                          {b.active ? 'Ativo' : 'Inativo'}
+                        </span>
+                      </div>
+                      <div className="text-xs text-[#777]">Comissão: {b.comissao || 0}%</div>
+                      <div className="text-xs text-[#777]">PIN: {b.pin ? '***' : 'Nenhum'}</div>
+                    </div>
                   )}
                 </td>
                 <td className="p-4 text-right align-top">

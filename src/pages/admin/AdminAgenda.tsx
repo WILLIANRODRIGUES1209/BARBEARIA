@@ -15,7 +15,14 @@ export default function AdminAgenda() {
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
   const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null);
 
-  const sortedAppointments = [...state.appointments].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const authData = sessionStorage.getItem('app_auth_state');
+  const authState = authData ? JSON.parse(authData) : null;
+  const isBarbeiro = authState?.role === 'BARBEIRO';
+  const currentBarbeiroId = authState?.barbeiroId;
+
+  const sortedAppointments = [...state.appointments]
+    .filter(a => !isBarbeiro || a.barberId === currentBarbeiroId)
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   const handleOpenDetails = (appt: Appointment) => {
     setSelectedAppt(appt);

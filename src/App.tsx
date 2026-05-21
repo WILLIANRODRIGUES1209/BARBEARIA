@@ -23,22 +23,24 @@ import InstallPrompt from './components/InstallPrompt';
 import NotificationPrompt from './components/NotificationPrompt';
 import { Toaster } from 'react-hot-toast';
 
-const AdminLayout = ({ children, onLogout }: { children: React.ReactNode, onLogout: () => void }) => {
+const AdminLayout = ({ children, onLogout, authState }: { children: React.ReactNode, onLogout: () => void, authState: any }) => {
   const location = useLocation();
   const { state } = useAppContext();
   const { barbearia } = useBarbearia();
 
-  const navItems = [
-    { name: 'Dashboard', path: '/admin', icon: LayoutDashboard },
-    { name: 'Agenda', path: '/admin/agenda', icon: CalendarIcon },
-    { name: 'PDV / Caixa', path: '/admin/pdv', icon: ShoppingCart },
-    { name: 'Clientes', path: '/admin/clientes', icon: Users },
-    { name: 'Barbeiros', path: '/admin/barbeiros', icon: Scissors },
-    { name: 'Estoque', path: '/admin/estoque', icon: Package },
-    { name: 'Financeiro', path: '/admin/financeiro', icon: DollarSign },
-    { name: 'Relatórios', path: '/admin/relatorios', icon: BarChart3 },
-    { name: 'Configurações', path: '/admin/configuracoes', icon: Settings },
+  const allNavItems = [
+    { name: 'Dashboard', path: '/admin', icon: LayoutDashboard, adminOnly: true },
+    { name: 'Agenda', path: '/admin/agenda', icon: CalendarIcon, adminOnly: false },
+    { name: 'PDV / Caixa', path: '/admin/pdv', icon: ShoppingCart, adminOnly: false },
+    { name: 'Clientes', path: '/admin/clientes', icon: Users, adminOnly: false },
+    { name: 'Barbeiros', path: '/admin/barbeiros', icon: Scissors, adminOnly: true },
+    { name: 'Estoque', path: '/admin/estoque', icon: Package, adminOnly: true },
+    { name: 'Financeiro', path: '/admin/financeiro', icon: DollarSign, adminOnly: true },
+    { name: 'Relatórios', path: '/admin/relatorios', icon: BarChart3, adminOnly: true },
+    { name: 'Configurações', path: '/admin/configuracoes', icon: Settings, adminOnly: true },
   ];
+
+  const navItems = allNavItems.filter(item => authState.role === 'ADMIN' || !item.adminOnly);
 
   return (
     <div className="flex h-screen bg-[#0A0A0A] text-[#E0E0E0] font-sans overflow-hidden">
@@ -118,11 +120,11 @@ const AdminLayout = ({ children, onLogout }: { children: React.ReactNode, onLogo
               <span className="text-[10px] text-[#777] uppercase tracking-wider">{state.isConnected ? 'Banco de Dados Online' : 'Banco de Dados Offline'}</span>
             </div>
             <div className="text-right">
-              <p className="text-sm font-medium">Administrador</p>
+              <p className="text-sm font-medium">{authState.role === 'ADMIN' ? 'Administrador' : 'Barbeiro'}</p>
               <p className="text-[10px] text-[#C5A059] uppercase">Status: Online</p>
             </div>
             <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#C5A059] to-[#8E6D31] p-[1px]">
-              <div className="w-full h-full rounded-full bg-[#0A0A0A] flex items-center justify-center font-bold text-xs text-[#C5A059]">AD</div>
+              <div className="w-full h-full rounded-full bg-[#0A0A0A] flex items-center justify-center font-bold text-xs text-[#C5A059]">{authState.role === 'ADMIN' ? 'AD' : 'BB'}</div>
             </div>
           </div>
         </header>
@@ -149,25 +151,35 @@ const AdminLayout = ({ children, onLogout }: { children: React.ReactNode, onLogo
 };
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return sessionStorage.getItem('admin_authenticated') === 'true';
+  const [authState, setAuthState] = useState<{ isAuthenticated: boolean; role: 'ADMIN' | 'BARBEIRO'; barbeiroId: string | null }>(() => {
+    const authData = sessionStorage.getItem('app_auth_state');
+    if (authData) {
+      try {
+        return JSON.parse(authData);
+      } catch (e) {}
+    }
+    return { isAuthenticated: false, role: 'ADMIN', barbeiroId: null };
   });
 
-  const handleLogin = () => {
-    setIsAuthenticated(true);
-    sessionStorage.setItem('admin_authenticated', 'true');
+  const handleLogin = (role: 'ADMIN' | 'BARBEIRO', barbeiroId: string | null = null) => {
+    const newState = { isAuthenticated: true, role, barbeiroId };
+    setAuthState(newState);
+    sessionStorage.setItem('app_auth_state', JSON.stringify(newState));
   };
 
   const handleLogout = () => {
-    setIsAuthenticated(false);
-    sessionStorage.removeItem('admin_authenticated');
+    setAuthState({ isAuthenticated: false, role: 'ADMIN', barbeiroId: null });
+    sessionStorage.removeItem('app_auth_state');
   };
 
-  const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-    if (!isAuthenticated) {
+  const ProtectedRoute = ({ children, requireAdmin }: { children: React.ReactNode, requireAdmin?: boolean }) => {
+    if (!authState.isAuthenticated) {
       return <Navigate to="/admin/login" replace />;
     }
-    return <AdminLayout onLogout={handleLogout}>{children}</AdminLayout>;
+    if (requireAdmin && authState.role !== 'ADMIN') {
+      return <Navigate to="/admin/agenda" replace />;
+    }
+    return <AdminLayout onLogout={handleLogout} authState={authState}>{children}</AdminLayout>;
   };
 
   return (
@@ -185,21 +197,21 @@ export default function App() {
             
             {/* Admin Login */}
             <Route path="/admin/login" element={
-              isAuthenticated ? <Navigate to="/admin" replace /> : <AdminLogin onLogin={handleLogin} />
+              authState.isAuthenticated ? <Navigate to={authState.role === 'ADMIN' ? "/admin" : "/admin/agenda"} replace /> : <AdminLogin onLogin={handleLogin} />
             } />
             <Route path="/admin/register" element={<AdminRegister />} />
             
             {/* Admin Routes */}
-            <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
-            <Route path="/admin/boas-vindas" element={<ProtectedRoute><WelcomeDashboard /></ProtectedRoute>} />
+            <Route path="/admin" element={<ProtectedRoute requireAdmin><AdminDashboard /></ProtectedRoute>} />
+            <Route path="/admin/boas-vindas" element={<ProtectedRoute requireAdmin><WelcomeDashboard /></ProtectedRoute>} />
             <Route path="/admin/pdv" element={<ProtectedRoute><AdminPDV /></ProtectedRoute>} />
             <Route path="/admin/agenda" element={<ProtectedRoute><AdminAgenda /></ProtectedRoute>} />
             <Route path="/admin/clientes" element={<ProtectedRoute><AdminClientes /></ProtectedRoute>} />
-            <Route path="/admin/barbeiros" element={<ProtectedRoute><AdminBarbeiros /></ProtectedRoute>} />
-            <Route path="/admin/estoque" element={<ProtectedRoute><AdminEstoque /></ProtectedRoute>} />
-            <Route path="/admin/financeiro" element={<ProtectedRoute><AdminFinanceiro /></ProtectedRoute>} />
-            <Route path="/admin/relatorios" element={<ProtectedRoute><AdminRelatorios /></ProtectedRoute>} />
-            <Route path="/admin/configuracoes" element={<ProtectedRoute><AdminConfig /></ProtectedRoute>} />
+            <Route path="/admin/barbeiros" element={<ProtectedRoute requireAdmin><AdminBarbeiros /></ProtectedRoute>} />
+            <Route path="/admin/estoque" element={<ProtectedRoute requireAdmin><AdminEstoque /></ProtectedRoute>} />
+            <Route path="/admin/financeiro" element={<ProtectedRoute requireAdmin><AdminFinanceiro /></ProtectedRoute>} />
+            <Route path="/admin/relatorios" element={<ProtectedRoute requireAdmin><AdminRelatorios /></ProtectedRoute>} />
+            <Route path="/admin/configuracoes" element={<ProtectedRoute requireAdmin><AdminConfig /></ProtectedRoute>} />
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

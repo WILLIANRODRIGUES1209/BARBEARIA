@@ -364,29 +364,23 @@ export default function ClientBooking() {
         {/* Step 5: Success */}
         {step === 5 && (
           <div className="text-center animate-in zoom-in duration-500 py-8">
-            <div className="mx-auto w-20 h-20 bg-[#00C85322] text-[#00C853] rounded-full flex items-center justify-center mb-6 shadow-[0_0_20px_#00C85322]">
+            <div className="mx-auto w-20 h-20 bg-[#C5A05922] text-[#C5A059] rounded-full flex items-center justify-center mb-6 shadow-[0_0_20px_#C5A05944]">
               <CheckCircle2 size={40} />
             </div>
-            <h2 className="text-2xl font-medium text-white mb-2">Quase lá!</h2>
-            <p className="text-[#888] text-sm mb-6">
-              Seu horário para <strong className="text-[#E0E0E0] font-medium">{service?.name}</strong> com <strong className="text-[#E0E0E0] font-medium">{barber?.name}</strong> está pré-reservado para o dia <strong className="text-[#E0E0E0] font-medium">{selectedDate ? format(selectedDate, "dd/MM", { locale: ptBR }) : ''}</strong> às <strong className="text-[#E0E0E0] font-mono">{selectedTime}</strong>.
-            </p>
-            <div className="bg-[#1A1A1A] p-4 rounded-xl border border-[#333] mb-8">
-              <p className="text-sm text-white mb-4">Para confirmar seu horário, clique no botão abaixo e envie a mensagem no nosso WhatsApp.</p>
-              <a 
-                href={getWhatsappLink()} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 w-full bg-[#25D366] text-white font-bold text-[10px] sm:text-sm uppercase tracking-widest py-3 sm:py-4 rounded-xl hover:bg-[#1DA851] transition-colors shadow-[0_0_15px_#25D36644]"
-              >
-                Confirmar no WhatsApp
-              </a>
+            <h2 className="text-2xl font-bold text-white mb-4">Agendamento Confirmado! ✂️</h2>
+            <div className="bg-[#1A1A1A] p-6 rounded-2xl border border-[#333] mb-8 shadow-inner">
+              <p className="text-[#E0E0E0] text-sm sm:text-base leading-relaxed">
+                Seu horário para <strong className="text-[#C5A059] font-bold">{service?.name}</strong> está garantido no dia <strong className="text-white font-bold">{selectedDate ? format(selectedDate, "dd/MM", { locale: ptBR }) : ''}</strong> às <strong className="text-white font-mono text-lg bg-[#222] px-2 py-0.5 rounded">{selectedTime}</strong>.
+              </p>
+              <p className="text-[#888] text-xs mt-4 bt-4 border-t border-[#333] pt-4">
+                No dia, aguardamos você pontualmente com o profissional {barber?.name}.
+              </p>
             </div>
             <button
               onClick={reset}
               className="w-full bg-[#1A1A1A] border border-[#333] text-[#E0E0E0] font-bold text-[10px] sm:text-xs uppercase tracking-widest py-3 sm:py-4 rounded-xl hover:bg-[#222] transition-colors"
             >
-              Voltar ao Início
+              Fazer Novo Agendamento
             </button>
           </div>
         )}
