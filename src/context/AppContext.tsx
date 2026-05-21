@@ -207,7 +207,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       
       if (error) {
         console.error('Error inserting appointment:', error);
-        alert('Erro ao agendar: ' + error.message);
+        toast.error('Erro ao agendar: ' + error.message);
         // Revert optimistic update on failure
         setState(prev => ({
           ...prev,

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { ShoppingCart, Plus, Minus, Trash2, DollarSign, Check } from 'lucide-react';
 import { Product, Service, Client } from '../../types';
+import toast from 'react-hot-toast';
 
 export default function AdminPDV() {
   const { state, addTransaction, updateProduct } = useAppContext();
@@ -60,7 +61,7 @@ export default function AdminPDV() {
       date: new Date().toISOString(),
     });
 
-    alert('Venda finalizada com sucesso!');
+    toast.success('Venda finalizada com sucesso!');
     setCartItems([]);
     setSelectedClient('');
     setDiscount(0);

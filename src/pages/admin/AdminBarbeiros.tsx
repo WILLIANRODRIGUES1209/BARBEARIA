@@ -3,6 +3,8 @@ import { useAppContext } from '../../context/AppContext';
 import { Plus, Edit2, Save, X, Scissors, Search } from 'lucide-react';
 import { Barber } from '../../types';
 
+import { confirmUI } from '../../utils/confirmUI';
+
 export default function AdminBarbeiros() {
   const { state, updateBarbers } = useAppContext();
   
@@ -43,10 +45,10 @@ export default function AdminBarbeiros() {
   };
 
   const handleDelete = (id: string) => {
-    if (confirm('Tem certeza que deseja excluir este barbeiro?')) {
+    confirmUI('Tem certeza que deseja excluir este barbeiro?', () => {
       const updated = state.barbers.filter(b => b.id !== id);
       updateBarbers(updated);
-    }
+    });
   };
 
   return (

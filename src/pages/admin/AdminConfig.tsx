@@ -3,6 +3,8 @@ import { useAppContext } from '../../context/AppContext';
 import { Plus, Edit2, Save, X, Settings } from 'lucide-react';
 import { Service } from '../../types';
 
+import { confirmUI } from '../../utils/confirmUI';
+
 export default function AdminConfig() {
   const { state, updateServices } = useAppContext();
   
@@ -42,10 +44,10 @@ export default function AdminConfig() {
   };
 
   const handleDelete = (id: string) => {
-    if (confirm('Tem certeza que deseja excluir este serviço?')) {
+    confirmUI('Tem certeza que deseja excluir este serviço?', () => {
       const updatedServices = state.services.filter(s => s.id !== id);
       updateServices(updatedServices);
-    }
+    });
   };
 
   return (

@@ -3,6 +3,8 @@ import { useAppContext } from '../../context/AppContext';
 import { Plus, Edit2, Save, X, Users, Search } from 'lucide-react';
 import { Client } from '../../types';
 
+import { confirmUI } from '../../utils/confirmUI';
+
 export default function AdminClientes() {
   const { state, updateClients } = useAppContext();
   
@@ -44,10 +46,10 @@ export default function AdminClientes() {
   };
 
   const handleDelete = (id: string) => {
-    if (confirm('Tem certeza que deseja excluir este cliente?')) {
+    confirmUI('Tem certeza que deseja excluir este cliente?', () => {
       const updated = state.clients.filter(c => c.id !== id);
       updateClients(updated);
-    }
+    });
   };
 
   const filteredClients = state.clients.filter(c => 
