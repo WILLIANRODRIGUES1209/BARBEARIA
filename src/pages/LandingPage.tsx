@@ -110,8 +110,8 @@ export default function LandingPage() {
 
           {/* Typography Content (Right Side) */}
           <div className="flex flex-col justify-center items-center md:items-end text-center md:text-right mt-20 md:mt-0 pt-[10vh] max-w-3xl">
-            <h1 className="text-6xl md:text-8xl lg:text-[8rem] font-cinzel text-[#E5B869] drop-shadow-[0_5px_15px_rgba(0,0,0,0.8)] mb-2 pr-4 leading-none relative group cursor-default">
-              <span className="relative inline-block pr-6 md:pr-10 italic">
+            <h1 className="text-6xl md:text-8xl lg:text-[8rem] font-cursive text-[#E5B869] drop-shadow-[0_5px_15px_rgba(0,0,0,0.8)] mb-2 pr-4 leading-none relative group cursor-default">
+              <span className="relative inline-block pr-6 md:pr-10">
                 Gestão
                 {/* Vintage Barber Pole Hanging from the 'o' */}
                 <div className="absolute top-[60%] right-0 md:-right-2 z-20 w-4 h-20 md:w-5 md:h-28 flex flex-col items-center">
@@ -141,7 +141,7 @@ export default function LandingPage() {
                 </div>
               </span>
               <br />
-              <span className="inline-block mt-2 ml-16 md:ml-24 italic no-underline">
+              <span className="inline-block relative -mt-4 md:-mt-8 ml-16 md:ml-32">
                 Pro
               </span>
             </h1>
@@ -193,8 +193,8 @@ export default function LandingPage() {
                 <div className="h-px w-full bg-gradient-to-r from-[#222] via-[#444] to-[#222] my-6"></div>
                 <p className="text-[#999] text-sm h-16 italic font-serif">"Pare de usar caderno. Organize sua barbearia no celular."</p>
                 <div className="my-8 flex items-end gap-2">
-                  <span className="text-4xl font-serif text-[#E5B869]">R$ 49,99</span>
-                  <span className="text-[#666] text-sm mb-1 uppercase tracking-widest font-bold">/mês</span>
+                  <span className="text-4xl font-serif text-[#E5B869]">R$ 0,00</span>
+                  <span className="text-[#666] text-sm mb-1 uppercase tracking-widest font-bold">/mês (Teste)</span>
                 </div>
                 <ul className="space-y-4 font-mono text-xs tracking-wider uppercase">
                   <li className="flex items-center gap-3"><Check size={16} className="text-[#E5B869] shrink-0" /><span className="text-[#CCC]">Agenda digital</span></li>
@@ -220,8 +220,8 @@ export default function LandingPage() {
                 <div className="h-px w-full bg-gradient-to-r from-[#E5B869]/20 via-[#E5B869]/50 to-[#E5B869]/20 my-6"></div>
                 <p className="text-[#DDD] text-sm h-16 italic font-serif">"Saiba exatamente quanto você ganha por dia, por serviço e por cliente."</p>
                 <div className="my-8 flex items-end gap-2">
-                  <span className="text-5xl font-serif text-[#E5B869]">R$ 89,99</span>
-                  <span className="text-[#888] text-sm mb-2 uppercase tracking-widest font-bold">/mês</span>
+                  <span className="text-5xl font-serif text-[#E5B869]">R$ 0,00</span>
+                  <span className="text-[#888] text-sm mb-2 uppercase tracking-widest font-bold">/mês (Teste)</span>
                 </div>
                 <ul className="space-y-4 font-mono text-xs tracking-wider uppercase">
                   <li className="flex items-center gap-3"><Check size={16} className="text-[#E5B869] shrink-0" /><span className="text-white">Tudo do Navalha Inicial</span></li>
@@ -246,8 +246,8 @@ export default function LandingPage() {
                 <div className="h-px w-full bg-gradient-to-r from-[#222] via-[#444] to-[#222] my-6"></div>
                 <p className="text-[#999] text-sm h-16 italic font-serif">"Transforme clientes casuais em fiéis e aumente seu faturamento."</p>
                 <div className="my-8 flex items-end gap-2">
-                  <span className="text-4xl font-serif text-[#E5B869]">R$ 129,99</span>
-                  <span className="text-[#666] text-sm mb-1 uppercase tracking-widest font-bold">/mês</span>
+                  <span className="text-4xl font-serif text-[#E5B869]">R$ 0,00</span>
+                  <span className="text-[#666] text-sm mb-1 uppercase tracking-widest font-bold">/mês (Teste)</span>
                 </div>
                 <ul className="space-y-4 font-mono text-xs tracking-wider uppercase">
                   <li className="flex items-start gap-3"><Check size={16} className="text-[#E5B869] shrink-0 mt-0.5" /><span className="text-white font-bold">Fidelidade Automática</span></li>

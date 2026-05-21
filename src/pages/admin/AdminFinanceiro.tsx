@@ -9,6 +9,7 @@ export default function AdminFinanceiro() {
   const [newTx, setNewTx] = useState({ description: '', amount: 0, type: 'INCOME' as 'INCOME' | 'EXPENSE' });
 
   const [dateFilter, setDateFilter] = useState<'ALL' | 'TODAY' | 'MONTH'>('MONTH');
+  const [paymentMethodFilter, setPaymentMethodFilter] = useState<'ALL' | 'PIX' | 'Cartão de Crédito' | 'Cartão de Débito' | 'Dinheiro'>('ALL');
 
   const [chatInput, setChatInput] = useState('');
   const [chatResponse, setChatResponse] = useState('');
@@ -16,21 +17,47 @@ export default function AdminFinanceiro() {
   const filteredTransactions = useMemo(() => {
     const now = new Date();
     return state.transactions.filter(t => {
-      if (dateFilter === 'ALL') return true;
-      const tDate = parseISO(t.date);
-      if (dateFilter === 'TODAY') {
-        return isWithinInterval(tDate, { start: startOfDay(now), end: endOfDay(now) });
+      // 1. Date Filter
+      if (dateFilter !== 'ALL') {
+         const tDate = parseISO(t.date);
+         if (dateFilter === 'TODAY' && !isWithinInterval(tDate, { start: startOfDay(now), end: endOfDay(now) })) return false;
+         if (dateFilter === 'MONTH' && !isWithinInterval(tDate, { start: startOfMonth(now), end: endOfMonth(now) })) return false;
       }
-      if (dateFilter === 'MONTH') {
-        return isWithinInterval(tDate, { start: startOfMonth(now), end: endOfMonth(now) });
+      
+      // 2. Payment Method Filter (only applies to INCOME)
+      if (paymentMethodFilter !== 'ALL' && t.type === 'INCOME') {
+         if (!t.description.includes(paymentMethodFilter)) return false;
       }
+
       return true;
     });
-  }, [state.transactions, dateFilter]);
+  }, [state.transactions, dateFilter, paymentMethodFilter]);
 
   const totalIncome = filteredTransactions.filter(t => t.type === 'INCOME').reduce((acc, t) => acc + t.amount, 0);
   const totalExpense = filteredTransactions.filter(t => t.type === 'EXPENSE').reduce((acc, t) => acc + t.amount, 0);
   const balance = totalIncome - totalExpense;
+
+  // Calculate totals by payment method ignoring the current paymentMethodFilter
+  // but respecting the date filter to show accurate boxes
+  const totalsByMethod = useMemo(() => {
+    const now = new Date();
+    const dateFiltered = state.transactions.filter(t => {
+      if (dateFilter === 'ALL') return true;
+      const tDate = parseISO(t.date);
+      if (dateFilter === 'TODAY') return isWithinInterval(tDate, { start: startOfDay(now), end: endOfDay(now) });
+      if (dateFilter === 'MONTH') return isWithinInterval(tDate, { start: startOfMonth(now), end: endOfMonth(now) });
+      return true;
+    });
+
+    const incomes = dateFiltered.filter(t => t.type === 'INCOME');
+    
+    return {
+      'PIX': incomes.filter(t => t.description.includes('PIX')).reduce((sum, t) => sum + t.amount, 0),
+      'Cartão de Crédito': incomes.filter(t => t.description.includes('Cartão de Crédito')).reduce((sum, t) => sum + t.amount, 0),
+      'Cartão de Débito': incomes.filter(t => t.description.includes('Cartão de Débito')).reduce((sum, t) => sum + t.amount, 0),
+      'Dinheiro': incomes.filter(t => t.description.includes('Dinheiro')).reduce((sum, t) => sum + t.amount, 0),
+    };
+  }, [state.transactions, dateFilter]);
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
@@ -194,6 +221,47 @@ export default function AdminFinanceiro() {
       )}
 
       <div className="bg-[#121212] rounded-2xl shadow-xl border border-[#222] overflow-hidden">
+        <div className="p-6 border-b border-[#222]">
+          <h2 className="text-lg font-medium text-white mb-4">Recebimentos por Forma de Pagamento</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <button 
+              onClick={() => setPaymentMethodFilter(paymentMethodFilter === 'PIX' ? 'ALL' : 'PIX')}
+              className={`p-4 rounded-xl border text-left transition-colors ${paymentMethodFilter === 'PIX' ? 'bg-[#00C85322] border-[#00C853] shadow-[0_0_15px_#00C85333]' : 'bg-[#1A1A1A] border-[#333] hover:border-[#555]'}`}
+            >
+              <h3 className={`text-[10px] uppercase tracking-wider mb-2 ${paymentMethodFilter === 'PIX' ? 'text-[#00C853]' : 'text-[#888]'}`}>PIX</h3>
+              <p className={`text-xl font-medium ${paymentMethodFilter === 'PIX' ? 'text-[#00C853]' : 'text-white'}`}>R$ {totalsByMethod['PIX'].toFixed(2)}</p>
+            </button>
+            <button 
+              onClick={() => setPaymentMethodFilter(paymentMethodFilter === 'Cartão de Crédito' ? 'ALL' : 'Cartão de Crédito')}
+              className={`p-4 rounded-xl border text-left transition-colors ${paymentMethodFilter === 'Cartão de Crédito' ? 'bg-[#00C85322] border-[#00C853] shadow-[0_0_15px_#00C85333]' : 'bg-[#1A1A1A] border-[#333] hover:border-[#555]'}`}
+            >
+              <h3 className={`text-[10px] uppercase tracking-wider mb-2 ${paymentMethodFilter === 'Cartão de Crédito' ? 'text-[#00C853]' : 'text-[#888]'}`}>Crédito</h3>
+              <p className={`text-xl font-medium ${paymentMethodFilter === 'Cartão de Crédito' ? 'text-[#00C853]' : 'text-white'}`}>R$ {totalsByMethod['Cartão de Crédito'].toFixed(2)}</p>
+            </button>
+            <button 
+              onClick={() => setPaymentMethodFilter(paymentMethodFilter === 'Cartão de Débito' ? 'ALL' : 'Cartão de Débito')}
+              className={`p-4 rounded-xl border text-left transition-colors ${paymentMethodFilter === 'Cartão de Débito' ? 'bg-[#00C85322] border-[#00C853] shadow-[0_0_15px_#00C85333]' : 'bg-[#1A1A1A] border-[#333] hover:border-[#555]'}`}
+            >
+              <h3 className={`text-[10px] uppercase tracking-wider mb-2 ${paymentMethodFilter === 'Cartão de Débito' ? 'text-[#00C853]' : 'text-[#888]'}`}>Débito</h3>
+              <p className={`text-xl font-medium ${paymentMethodFilter === 'Cartão de Débito' ? 'text-[#00C853]' : 'text-white'}`}>R$ {totalsByMethod['Cartão de Débito'].toFixed(2)}</p>
+            </button>
+            <button 
+              onClick={() => setPaymentMethodFilter(paymentMethodFilter === 'Dinheiro' ? 'ALL' : 'Dinheiro')}
+              className={`p-4 rounded-xl border text-left transition-colors ${paymentMethodFilter === 'Dinheiro' ? 'bg-[#00C85322] border-[#00C853] shadow-[0_0_15px_#00C85333]' : 'bg-[#1A1A1A] border-[#333] hover:border-[#555]'}`}
+            >
+              <h3 className={`text-[10px] uppercase tracking-wider mb-2 ${paymentMethodFilter === 'Dinheiro' ? 'text-[#00C853]' : 'text-[#888]'}`}>Dinheiro</h3>
+              <p className={`text-xl font-medium ${paymentMethodFilter === 'Dinheiro' ? 'text-[#00C853]' : 'text-white'}`}>R$ {totalsByMethod['Dinheiro'].toFixed(2)}</p>
+            </button>
+          </div>
+          {paymentMethodFilter !== 'ALL' && (
+             <div className="mt-4 flex items-center gap-2">
+                <span className="text-xs text-[#E0E0E0]">Filtrando por: <strong className="text-[#00C853]">{paymentMethodFilter}</strong></span>
+                <button onClick={() => setPaymentMethodFilter('ALL')} className="text-[#FF3D00] hover:underline text-xs flex items-center gap-1">
+                   Limpar Filtro <X size={12} />
+                </button>
+             </div>
+          )}
+        </div>
         <h2 className="text-lg font-medium text-white p-6 border-b border-[#222]">Histórico de Transações</h2>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
