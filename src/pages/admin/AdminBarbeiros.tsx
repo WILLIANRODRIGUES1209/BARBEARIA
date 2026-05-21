@@ -11,8 +11,8 @@ export default function AdminBarbeiros() {
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  const [newBarber, setNewBarber] = useState<Omit<Barber, 'id'>>({ name: '', phone: '', specialties: '', active: true, comissao: 50, pin: '' });
-  const [editForm, setEditForm] = useState<Omit<Barber, 'id'>>({ name: '', phone: '', specialties: '', active: true, comissao: 50, pin: '' });
+  const [newBarber, setNewBarber] = useState<Omit<Barber, 'id'>>({ name: '', phone: '', specialties: '', active: true, comissao: 50, pin: '', acesso: '' });
+  const [editForm, setEditForm] = useState<Omit<Barber, 'id'>>({ name: '', phone: '', specialties: '', active: true, comissao: 50, pin: '', acesso: '' });
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,12 +20,12 @@ export default function AdminBarbeiros() {
     
     addBarber(newBarber);
     setIsAdding(false);
-    setNewBarber({ name: '', phone: '', specialties: '', active: true, comissao: 50, pin: '' });
+    setNewBarber({ name: '', phone: '', specialties: '', active: true, comissao: 50, pin: '', acesso: '' });
   };
 
   const startEdit = (b: Barber) => {
     setEditingId(b.id);
-    setEditForm({ name: b.name, phone: b.phone || '', specialties: b.specialties || '', active: b.active, comissao: b.comissao || 0, pin: b.pin || '' });
+    setEditForm({ name: b.name, phone: b.phone || '', specialties: b.specialties || '', active: b.active, comissao: b.comissao || 0, pin: b.pin || '', acesso: b.acesso || '' });
   };
 
   const handleUpdate = (id: string) => {
@@ -95,7 +95,17 @@ export default function AdminBarbeiros() {
             />
           </div>
           <div>
-            <label className="block text-xs uppercase tracking-[0.1em] text-[#555] font-medium mb-2">PIN (Acesso)</label>
+            <label className="block text-xs uppercase tracking-[0.1em] text-[#555] font-medium mb-2">Login (Nº Acesso)</label>
+            <input 
+              type="text" 
+              placeholder="Ex: 1001"
+              value={newBarber.acesso}
+              onChange={e => setNewBarber({...newBarber, acesso: e.target.value})}
+              className="w-full px-4 py-3 bg-[#1A1A1A] border border-[#333] text-white rounded focus:border-[#C5A059] focus:outline-none transition-colors"
+            />
+          </div>
+          <div>
+            <label className="block text-xs uppercase tracking-[0.1em] text-[#555] font-medium mb-2">PIN (Senha)</label>
             <input 
               type="text" 
               placeholder="Senha de acesso"
@@ -183,6 +193,13 @@ export default function AdminBarbeiros() {
                       />
                       <input 
                         type="text" 
+                        value={editForm.acesso}
+                        placeholder="Nº Acesso"
+                        onChange={e => setEditForm({...editForm, acesso: e.target.value})}
+                        className="w-full px-3 py-2 bg-[#1A1A1A] border border-[#333] text-white text-sm rounded focus:border-[#C5A059] focus:outline-none"
+                      />
+                      <input 
+                        type="text" 
                         value={editForm.pin}
                         placeholder="PIN"
                         onChange={e => setEditForm({...editForm, pin: e.target.value})}
@@ -197,7 +214,7 @@ export default function AdminBarbeiros() {
                         </span>
                       </div>
                       <div className="text-xs text-[#777]">Comissão: {b.comissao || 0}%</div>
-                      <div className="text-xs text-[#777]">PIN: {b.pin ? '***' : 'Nenhum'}</div>
+                      <div className="text-xs text-[#777]">Acesso: {b.acesso || 'N/A'} - PIN: {b.pin ? '***' : 'Nenhum'}</div>
                     </div>
                   )}
                 </td>

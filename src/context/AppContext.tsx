@@ -89,7 +89,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               active: b.ativo,
               specialties: b.especialidades || '',
               comissao: b.comissao,
-              pin: b.pin
+              pin: b.pin,
+              acesso: b.acesso
             })),
             clients: (clientes || []).map((c: any) => ({
               id: c.id,
@@ -482,7 +483,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ativo: barber.active,
         especialidades: barber.specialties,
         comissao: barber.comissao,
-        pin: barber.pin
+        pin: barber.pin,
+        acesso: barber.acesso
       });
       if (error) throw error;
     } catch (e) {
@@ -505,6 +507,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (updates.specialties !== undefined) mappedData.especialidades = updates.specialties;
     if (updates.comissao !== undefined) mappedData.comissao = updates.comissao;
     if (updates.pin !== undefined) mappedData.pin = updates.pin;
+    if (updates.acesso !== undefined) mappedData.acesso = updates.acesso;
 
     try {
       await supabase.from('barbeiros').update(mappedData).eq('id', id);

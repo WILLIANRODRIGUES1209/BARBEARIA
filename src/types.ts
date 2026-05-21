@@ -22,6 +22,7 @@ export type Barber = {
   active: boolean;
   comissao?: number;
   pin?: string;
+  acesso?: string;
 };
 
 export type Appointment = {

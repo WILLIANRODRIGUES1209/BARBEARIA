@@ -8,7 +8,7 @@ export default function AdminLogin({ onLogin }: { onLogin: (role: 'ADMIN' | 'BAR
   const [loginType, setLoginType] = useState<'ADMIN' | 'BARBEIRO'>('ADMIN');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [slug, setSlug] = useState('');
+  const [acesso, setAcesso] = useState('');
   const [pin, setPin] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
@@ -37,23 +37,23 @@ export default function AdminLogin({ onLogin }: { onLogin: (role: 'ADMIN' | 'BAR
     } else {
       // Login Barbeiro
       try {
-        const { data: bData, error: bError } = await supabase.from('barbearias').select('id').eq('slug', slug).single();
-        if (bError || !bData) {
-          throw new Error('Barbearia não encontrada.');
-        }
-
         const { data: barb, error: barbError } = await supabase.from('barbeiros')
-          .select('id, nome')
-          .eq('barbearia_id', bData.id)
+          .select('id, nome, barbearia_id')
+          .eq('acesso', acesso)
           .eq('pin', pin)
           .single();
 
         if (barbError || !barb) {
-          throw new Error('PIN incorreto ou não encontrado.');
+          throw new Error('Nº de Acesso ou PIN incorretos.');
+        }
+
+        const { data: bData, error: bError } = await supabase.from('barbearias').select('slug').eq('id', barb.barbearia_id).single();
+        if (bError || !bData) {
+          throw new Error('Erro ao carregar os dados da barbearia vinculada.');
         }
 
         // We fetch the barbearia to populate context
-        await fetchBySlug(slug);
+        await fetchBySlug(bData.slug);
 
         setLoading(false);
         onLogin('BARBEIRO', barb.id);
@@ -123,9 +123,9 @@ export default function AdminLogin({ onLogin }: { onLogin: (role: 'ADMIN' | 'BAR
                 <Building className="absolute left-4 top-1/2 -translate-y-1/2 text-[#777]" size={20} />
                 <input
                   type="text"
-                  placeholder="Link da Barbearia (ex: central-barber)"
-                  value={slug}
-                  onChange={(e) => setSlug(e.target.value)}
+                  placeholder="Seu Nº de Acesso"
+                  value={acesso}
+                  onChange={(e) => setAcesso(e.target.value)}
                   className="w-full pl-12 pr-4 py-4 bg-[#1A1A1A] border border-[#333] text-white rounded-xl focus:border-[#C5A059] focus:outline-none transition-colors text-sm"
                   required
                 />
