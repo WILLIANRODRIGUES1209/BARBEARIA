@@ -254,7 +254,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             serviceName: service ? service.name : 'Serviço',
             date: dateObj.toLocaleDateString('pt-BR'),
             time: dateObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-            deviceId: typeof window !== 'undefined' ? localStorage.getItem('deviceId') : undefined
+            deviceId: typeof window !== 'undefined' ? localStorage.getItem('deviceId') : undefined,
+            appointmentId: data.id
           })
         }).catch(err => console.error(err));
       }

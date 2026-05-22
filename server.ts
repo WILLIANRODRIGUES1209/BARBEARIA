@@ -16,8 +16,62 @@ webpush.setVapidDetails(
   VAPID_PRIVATE_KEY
 );
 
-// In-memory store for subscriptions (ideally this should be in Supabase)
+// In-memory store for subscriptions, backed by a file
 let subscriptions: any[] = [];
+const SUBSCRIPTIONS_FILE = path.join(process.cwd(), 'subscriptions.json');
+
+// Load subscriptions from file
+try {
+  if (fs.existsSync(SUBSCRIPTIONS_FILE)) {
+    subscriptions = JSON.parse(fs.readFileSync(SUBSCRIPTIONS_FILE, 'utf-8'));
+  }
+} catch (e) {
+  console.error('Error loading subscriptions', e);
+}
+
+// In-memory store for appointment device associations
+let appointmentDevices: Map<string, string> = new Map();
+let notified1h: Set<string> = new Set();
+let notified2h: Set<string> = new Set();
+const APP_STATE_FILE = path.join(process.cwd(), 'app_state.json');
+
+try {
+  if (fs.existsSync(APP_STATE_FILE)) {
+    const stateFile = JSON.parse(fs.readFileSync(APP_STATE_FILE, 'utf-8'));
+    if (stateFile.appointmentDevices) {
+      appointmentDevices = new Map(Object.entries(stateFile.appointmentDevices));
+    }
+    if (stateFile.notified1h) {
+      notified1h = new Set(stateFile.notified1h);
+    }
+    if (stateFile.notified2h) {
+      notified2h = new Set(stateFile.notified2h);
+    }
+  }
+} catch (e) {
+  console.error("Error loading app state", e);
+}
+
+const saveAppState = () => {
+  try {
+    const stateObj = {
+      appointmentDevices: Object.fromEntries(appointmentDevices),
+      notified1h: Array.from(notified1h),
+      notified2h: Array.from(notified2h)
+    };
+    fs.writeFileSync(APP_STATE_FILE, JSON.stringify(stateObj, null, 2));
+  } catch(e) {
+    console.error('Error saving app state', e);
+  }
+};
+
+const saveSubscriptions = () => {
+  try {
+    fs.writeFileSync(SUBSCRIPTIONS_FILE, JSON.stringify(subscriptions, null, 2));
+  } catch(e) {
+    console.error('Error saving subscriptions', e);
+  }
+};
 
 
 async function startServer() {
@@ -40,16 +94,20 @@ async function startServer() {
   // Subscribe to push notifications
   app.post("/api/subscribe", (req, res) => {
     const { subscription, role, deviceId } = req.body;
+    // Remove if deviceId already exists
+    subscriptions = subscriptions.filter(s => s.deviceId !== deviceId);
     subscriptions.push({ subscription, role, deviceId });
+    saveSubscriptions();
     res.status(201).json({ success: true });
   });
 
   // Send a test notification
   app.post("/api/test-notification", async (req, res) => {
     const { title, message } = req.body;
-    const payload = JSON.stringify({ title, body: message });
+    const payload = JSON.stringify({ title, body: message, icon: '/icon.svg' });
     
     let promises = [];
+    let removed = false;
     for (let i = 0; i < subscriptions.length; i++) {
         const sub = subscriptions[i].subscription;
         promises.push(
@@ -57,17 +115,20 @@ async function startServer() {
                 console.error("Error sending notification, removing subscription", err);
                 subscriptions.splice(i, 1);
                 i--;
+                removed = true;
             })
         );
     }
-    await Promise.all(promises);
+    await Promise.allSettled(promises);
+    if (removed) saveSubscriptions();
     res.status(200).json({ success: true });
   });
 
   // Helper to send push
   const sendPush = async (title: string, body: string, targetRole: string | null = null, targetDeviceId: string | null = null) => {
-    const payload = JSON.stringify({ title, body, icon: '/icon-192x192.png' });
+    const payload = JSON.stringify({ title, body, icon: '/icon.svg' });
     let promises = [];
+    let removed = false;
     for (let i = 0; i < subscriptions.length; i++) {
         const subItem = subscriptions[i];
         
@@ -79,10 +140,12 @@ async function startServer() {
                 console.error("Error sending notification, removing subscription", err);
                 subscriptions.splice(i, 1);
                 i--;
+                removed = true;
             })
         );
     }
-    await Promise.all(promises);
+    await Promise.allSettled(promises);
+    if (removed) saveSubscriptions();
   };
 
   // Crons that run every minute
@@ -100,20 +163,33 @@ async function startServer() {
            const apptDate = new Date(appt.data_hora);
            const diffMinutes = (apptDate.getTime() - now.getTime()) / 60000;
            
-           // Lembrete Anti-Esquecimento (2 horas antes ou 1 hora, conforme logica - deixarei 1 hr pois foi como fiz antes, mas posso ajustar para 2 horas como pedido: "2 horas antes")
-           // Let's adjust to 2 hours
+           // Lembrete Anti-Esquecimento 1 hora
            const diffHours = diffMinutes / 60;
            
-           if (diffHours > 1.9 && diffHours < 2.1 && !appt.notified_2h) {
-               console.log("Sending 2 hour reminder for:", appt.cliente_nome);
+           if (diffHours >= 0.9 && diffHours <= 1.1 && !notified1h.has(appt.id)) {
+               console.log("Sending 1 hour reminder for:", appt.cliente_nome);
                
                const hora = apptDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
 
-               sendPush(
-                 "Lembrete de Agendamento!", 
-                 `Fala, ${appt.cliente_nome}! Tudo certo? Passando para lembrar do seu horário hoje às ${hora}. Se precisar remarcar, avise a gente com antecedência. Até logo!`
-               );
-               appt.notified_2h = true;
+               const deviceId = appointmentDevices.get(appt.id);
+               
+               if (deviceId) {
+                 sendPush(
+                   "Lembrete de Agendamento!", 
+                   `Fala, ${appt.cliente_nome}! Tudo certo? Seu horário hoje às ${hora} está chegando. Se precisar remarcar, avise com antecedência.`,
+                   "client",
+                   deviceId
+                 );
+               } else {
+                 // Try falling back to WhatsApp if they have it configured, or notify admin?
+                 // But since it specifically said "no aplicativo", we just push.
+                 // If the deviceId isn't stored in memory (e.g. server restarted), we won't be able to push to the client natively.
+                 // In production, device_id would be saved in Supabase.
+               }
+
+               notified1h.add(appt.id);
+               appt.notified_1h = true;
+               saveAppState();
            }
         });
       }
@@ -261,11 +337,16 @@ async function startServer() {
   // called when a booking is created successfully on the frontend.
   app.post("/api/notify-booking", async (req, res) => {
     try {
-      const { clientName, serviceName, date, time, deviceId } = req.body;
+      const { clientName, serviceName, date, time, deviceId, appointmentId } = req.body;
       const adminWhatsApp = process.env.ADMIN_WHATSAPP_NUMBER;
       const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
       const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
       const twilioPhone = process.env.TWILIO_PHONE_NUMBER;
+
+      if (appointmentId && deviceId) {
+        appointmentDevices.set(appointmentId, deviceId);
+        saveAppState();
+      }
 
       const adminMsg = `Novo cliente na área! 🚀 ${clientName} agendou ${serviceName} para o dia ${date} às ${time}.`;
       const clientMsg = `Agendamento Confirmado! ✂️ Seu horário para ${serviceName} está garantido no dia ${date} às ${time}.`;
