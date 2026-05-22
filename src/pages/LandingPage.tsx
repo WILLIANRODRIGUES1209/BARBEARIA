@@ -150,12 +150,21 @@ export default function LandingPage() {
               A Revolução na sua Barbearia
             </h2>
             
-            <button 
-              onClick={() => window.scrollTo({ top: document.getElementById('planos')?.offsetTop, behavior: 'smooth' })}
-              className="border-2 border-[#E5B869] text-[#E5B869] font-bold uppercase tracking-[0.2em] text-sm py-4 px-10 hover:bg-[#E5B869] hover:text-black transition-all duration-300"
-            >
-              Ver Planos de Assinatura
-            </button>
+            <div className="flex flex-col md:flex-row items-center gap-4">
+              <button 
+                onClick={() => window.scrollTo({ top: document.getElementById('planos')?.offsetTop, behavior: 'smooth' })}
+                className="w-full md:w-auto border-2 border-[#E5B869] text-[#E5B869] font-bold uppercase tracking-[0.2em] text-sm py-4 px-10 hover:bg-[#E5B869] hover:text-black transition-all duration-300"
+              >
+                Ver Planos de Assinatura
+              </button>
+              
+              <button 
+                onClick={() => navigate('/admin/login')}
+                className="w-full md:w-auto md:hidden bg-[#E5B869] text-black font-bold uppercase tracking-[0.2em] text-sm py-4 px-10 hover:bg-white hover:text-black transition-all duration-300"
+              >
+                Fazer Login
+              </button>
+            </div>
 
             {/* Circular Stamp / Badge */}
             <div className="mt-16 md:mt-24 relative w-32 h-32 flex items-center justify-center opacity-80 self-center md:self-end md:mr-10">
