@@ -15,6 +15,7 @@ import AdminLogin from './pages/admin/AdminLogin';
 import AdminRegister from './pages/admin/AdminRegister';
 import AdminClientes from './pages/admin/AdminClientes';
 import AdminBarbeiros from './pages/admin/AdminBarbeiros';
+import AdminMeuHistorico from './pages/admin/AdminMeuHistorico';
 import AdminRelatorios from './pages/admin/AdminRelatorios';
 import AdminPDV from './pages/admin/AdminPDV';
 import LandingPage from './pages/LandingPage';
@@ -33,6 +34,7 @@ const AdminLayout = ({ children, onLogout, authState }: { children: React.ReactN
     { name: 'Agenda', path: '/admin/agenda', icon: CalendarIcon, adminOnly: false },
     { name: 'PDV / Caixa', path: '/admin/pdv', icon: ShoppingCart, adminOnly: false },
     { name: 'Clientes', path: '/admin/clientes', icon: Users, adminOnly: false },
+    { name: 'Meu Histórico', path: '/admin/meu-historico', icon: DollarSign, barbeiroOnly: true },
     { name: 'Barbeiros', path: '/admin/barbeiros', icon: Scissors, adminOnly: true },
     { name: 'Estoque', path: '/admin/estoque', icon: Package, adminOnly: true },
     { name: 'Financeiro', path: '/admin/financeiro', icon: DollarSign, adminOnly: true },
@@ -40,7 +42,10 @@ const AdminLayout = ({ children, onLogout, authState }: { children: React.ReactN
     { name: 'Configurações', path: '/admin/configuracoes', icon: Settings, adminOnly: true },
   ];
 
-  const navItems = allNavItems.filter(item => authState.role === 'ADMIN' || !item.adminOnly);
+  const navItems = allNavItems.filter(item => {
+    if (authState.role === 'ADMIN') return !item.barbeiroOnly;
+    return !item.adminOnly;
+  });
 
   return (
     <div className="flex h-screen bg-[#0A0A0A] text-[#E0E0E0] font-sans overflow-hidden">
@@ -207,6 +212,7 @@ export default function App() {
             <Route path="/admin/pdv" element={<ProtectedRoute><AdminPDV /></ProtectedRoute>} />
             <Route path="/admin/agenda" element={<ProtectedRoute><AdminAgenda /></ProtectedRoute>} />
             <Route path="/admin/clientes" element={<ProtectedRoute><AdminClientes /></ProtectedRoute>} />
+            <Route path="/admin/meu-historico" element={<ProtectedRoute><AdminMeuHistorico /></ProtectedRoute>} />
             <Route path="/admin/barbeiros" element={<ProtectedRoute requireAdmin><AdminBarbeiros /></ProtectedRoute>} />
             <Route path="/admin/estoque" element={<ProtectedRoute requireAdmin><AdminEstoque /></ProtectedRoute>} />
             <Route path="/admin/financeiro" element={<ProtectedRoute requireAdmin><AdminFinanceiro /></ProtectedRoute>} />

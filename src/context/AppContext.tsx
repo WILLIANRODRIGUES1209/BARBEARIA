@@ -93,7 +93,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               name: b.nome,
               phone: b.telefone,
               active: b.ativo,
-              specialties: b.especialidades || '',
               comissao: b.comissao,
               pin: b.pin,
               acesso: b.acesso
@@ -526,7 +525,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         nome: barber.name,
         telefone: barber.phone,
         ativo: barber.active,
-        especialidades: barber.specialties,
         comissao: barber.comissao,
         pin: barber.pin,
         acesso: barber.acesso
@@ -552,7 +550,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (updates.name !== undefined) mappedData.nome = updates.name;
     if (updates.phone !== undefined) mappedData.telefone = updates.phone;
     if (updates.active !== undefined) mappedData.ativo = updates.active;
-    if (updates.specialties !== undefined) mappedData.especialidades = updates.specialties;
     if (updates.comissao !== undefined) mappedData.comissao = updates.comissao;
     if (updates.pin !== undefined) mappedData.pin = updates.pin;
     if (updates.acesso !== undefined) mappedData.acesso = updates.acesso;
