@@ -61,7 +61,7 @@ export default function ClientBooking() {
 
     // Create full ISO string for the appointment
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
-    const isoDateTime = `${dateStr}T${selectedTime}:00`;
+    const isoDateTime = `${dateStr}T${selectedTime}:00-03:00`;
 
     addAppointment({
       serviceId: selectedService,
@@ -252,12 +252,15 @@ export default function ClientBooking() {
                 <div className="grid grid-cols-3 gap-3">
                   {availableTimes.map(time => {
                     const isSelected = selectedTime === time;
-                    const timeString = `${format(selectedDate, 'yyyy-MM-dd')}T${time}`;
-                    const isBooked = state.appointments.some(a => 
-                      a.status !== 'CANCELLED' && 
-                      a.date && a.date.startsWith(timeString) &&
-                      a.barberId === selectedBarber
-                    );
+                    // Check if this slot is already booked for this barber.
+                    // We parse the stored ISO string and compare its local formatted equivalent.
+                    const isBooked = state.appointments.some(a => {
+                      if (a.status === 'CANCELLED' || !a.date || a.barberId !== selectedBarber) return false;
+                      const apptDate = parseISO(a.date);
+                      const apptLocalString = format(apptDate, 'yyyy-MM-dd') + 'T' + format(apptDate, 'HH:mm');
+                      const slotLocalString = format(selectedDate, 'yyyy-MM-dd') + 'T' + time;
+                      return apptLocalString === slotLocalString;
+                    });
                     return (
                       <button
                         key={time}
