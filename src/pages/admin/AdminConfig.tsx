@@ -6,7 +6,7 @@ import { Service } from '../../types';
 import { confirmUI } from '../../utils/confirmUI';
 
 export default function AdminConfig() {
-  const { state, updateServices } = useAppContext();
+  const { state, addService, editService, deleteService } = useAppContext();
   
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -14,18 +14,16 @@ export default function AdminConfig() {
   const [newService, setNewService] = useState({ name: '', durationMinutes: 30, price: 0 });
   const [editForm, setEditForm] = useState({ name: '', durationMinutes: 30, price: 0 });
 
-  const handleAdd = (e: React.FormEvent) => {
+  const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newService.name || newService.price <= 0) return;
     
-    const service: Service = {
-      id: Date.now().toString(),
+    await addService({
       name: newService.name,
       durationMinutes: newService.durationMinutes,
       price: newService.price
-    };
+    });
     
-    updateServices([...state.services, service]);
     setIsAdding(false);
     setNewService({ name: '', durationMinutes: 30, price: 0 });
   };
@@ -35,18 +33,18 @@ export default function AdminConfig() {
     setEditForm({ name: service.name, durationMinutes: service.durationMinutes, price: service.price });
   };
 
-  const handleUpdate = (id: string) => {
-    const updatedServices = state.services.map(s => 
-      s.id === id ? { ...s, ...editForm } : s
-    );
-    updateServices(updatedServices);
+  const handleUpdate = async (id: string) => {
+    await editService(id, {
+      name: editForm.name,
+      price: editForm.price,
+      durationMinutes: editForm.durationMinutes
+    });
     setEditingId(null);
   };
 
   const handleDelete = (id: string) => {
-    confirmUI('Tem certeza que deseja excluir este serviço?', () => {
-      const updatedServices = state.services.filter(s => s.id !== id);
-      updateServices(updatedServices);
+    confirmUI('Tem certeza que deseja excluir este serviço?', async () => {
+      await deleteService(id);
     });
   };
 

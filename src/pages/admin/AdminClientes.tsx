@@ -7,7 +7,7 @@ import { format, parseISO } from 'date-fns';
 import { confirmUI } from '../../utils/confirmUI';
 
 export default function AdminClientes() {
-  const { state, updateClients } = useAppContext();
+  const { state, addClient, editClient, deleteClient } = useAppContext();
   
   const authData = sessionStorage.getItem('app_auth_state');
   const authState = authData ? JSON.parse(authData) : null;
@@ -23,19 +23,17 @@ export default function AdminClientes() {
   const [newClient, setNewClient] = useState({ name: '', phone: '', birthDate: '', notes: '' });
   const [editForm, setEditForm] = useState({ name: '', phone: '', birthDate: '', notes: '' });
 
-  const handleAdd = (e: React.FormEvent) => {
+  const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newClient.name || !newClient.phone) return;
     
-    const client: Client = {
-      id: Date.now().toString(),
+    await addClient({
       name: newClient.name,
       phone: newClient.phone,
       birthDate: newClient.birthDate,
       notes: newClient.notes,
-    };
+    });
     
-    updateClients([...state.clients, client]);
     setIsAdding(false);
     setNewClient({ name: '', phone: '', birthDate: '', notes: '' });
   };
@@ -46,20 +44,16 @@ export default function AdminClientes() {
     setEditForm({ name: client.name, phone: client.phone, birthDate: client.birthDate || '', notes: client.notes || '' });
   };
 
-  const handleUpdate = (e: React.MouseEvent, id: string) => {
+  const handleUpdate = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    const updated = state.clients.map(c => 
-      c.id === id ? { ...c, ...editForm } : c
-    );
-    updateClients(updated);
+    await editClient(id, editForm);
     setEditingId(null);
   };
 
   const handleDelete = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    confirmUI('Tem certeza que deseja excluir este cliente?', () => {
-      const updated = state.clients.filter(c => c.id !== id);
-      updateClients(updated);
+    confirmUI('Tem certeza que deseja excluir este cliente?', async () => {
+      await deleteClient(id);
     });
   };
 

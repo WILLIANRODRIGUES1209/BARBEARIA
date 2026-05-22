@@ -13,7 +13,13 @@ export interface AppContextType {
   updateProduct: (id: string, updates: Partial<Product>) => void;
   addTransaction: (transaction: Omit<Transaction, 'id'>) => void;
   updateServices: (services: Service[]) => void;
+  addService: (service: Omit<Service, 'id'>) => Promise<void>;
+  editService: (id: string, updates: Partial<Service>) => Promise<void>;
+  deleteService: (id: string) => Promise<void>;
   updateClients: (clients: Client[]) => void;
+  addClient: (client: Omit<Client, 'id'>) => Promise<void>;
+  editClient: (id: string, updates: Partial<Client>) => Promise<void>;
+  deleteClient: (id: string) => Promise<void>;
   addBarber: (barber: Omit<Barber, 'id'>) => Promise<void>;
   editBarber: (id: string, updates: Partial<Barber>) => Promise<void>;
   deleteBarber: (id: string) => Promise<void>;
@@ -223,7 +229,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         barbeiro_id: appt.barberId,
         data_hora: appt.date,
         status: 'PENDENTE',
-      });
+      }).select().single();
       
       if (error) {
         console.error('Error inserting appointment:', error);
@@ -233,7 +239,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           ...prev,
           appointments: prev.appointments.filter(a => a.id !== tempId)
         }));
-      } else {
+      } else if (data) {
+        setState(prev => ({ ...prev, appointments: prev.appointments.map(a => a.id === tempId ? { ...a, id: data.id } : a) }));
         // Find service name
         const service = state.services.find(s => s.id === appt.serviceId);
         // Format time properly to send to notify
@@ -373,14 +380,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }));
 
     try {
-      const { error } = await supabase.from('produtos').insert({
+      const { data, error } = await supabase.from('produtos').insert({
         barbearia_id: barbearia.id,
         nome: prod.name,
         preco: prod.price,
         quantidade: prod.quantity
-      });
+      }).select().single();
       if (error) {
         setState(prev => ({ ...prev, products: prev.products.filter(p => p.id !== tempId) }));
+      } else if (data) {
+        setState(prev => ({ ...prev, products: prev.products.map(p => p.id === tempId ? { ...p, id: data.id } : p) }));
       }
     } catch (err) {
       console.error(err);
@@ -420,15 +429,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }));
 
     try {
-      const { error } = await supabase.from('transacoes').insert({
+      const { data, error } = await supabase.from('transacoes').insert({
         barbearia_id: barbearia.id,
         tipo: t.type === 'INCOME' ? 'ENTRADA' : 'SAIDA',
         valor: t.amount,
         descricao: t.description,
         data: t.date || new Date().toISOString()
-      });
+      }).select().single();
       if (error) {
         setState(prev => ({ ...prev, transactions: prev.transactions.filter(tr => tr.id !== tempId) }));
+      } else if (data) {
+        setState(prev => ({ ...prev, transactions: prev.transactions.map(tr => tr.id === tempId ? { ...tr, id: data.id } : tr) }));
       }
     } catch (err) {
       console.error(err);
@@ -437,37 +448,71 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateServices = async (services: Service[]) => {
-    if (!barbearia) return;
-    
-    // Identifica o que mudou (simplificado para sincronizar com o estado local)
-    // Para uma implementação robusta, o ideal seria ter addService, deleteService, updateService
-    // Mas vamos manter a assinatura atual e tentar sincronizar
     setState(prev => ({ ...prev, services }));
-    
-    // Sincroniza a última alteração (assumindo que o Admin enviou a lista atualizada)
-    const lastService = services[services.length - 1];
-    if (lastService && !state.services.find(s => s.id === lastService.id)) {
-      await supabase.from('servicos').insert({
+  };
+
+  const addService = async (service: Omit<Service, 'id'>) => {
+    if (!barbearia) return;
+    const tempId = `temp-${Date.now()}`;
+    setState(prev => ({ ...prev, services: [...prev.services, { ...service, id: tempId }] }));
+    try {
+      const { data, error } = await supabase.from('servicos').insert({
         barbearia_id: barbearia.id,
-        nome: lastService.name,
-        preco: lastService.price,
-        duracao_minutos: lastService.durationMinutes
-      });
-    }
+        nome: service.name,
+        preco: service.price,
+        duracao_minutos: service.durationMinutes
+      }).select().single();
+      if(data) setState(prev => ({ ...prev, services: prev.services.map(s => s.id === tempId ? { ...s, id: data.id } : s) }));
+    } catch(e) {}
+  };
+
+  const editService = async (id: string, updates: Partial<Service>) => {
+    if (!barbearia) return;
+    setState(prev => ({ ...prev, services: prev.services.map(s => s.id === id ? { ...s, ...updates } : s) }));
+    const map: any = {};
+    if (updates.name) map.nome = updates.name;
+    if (updates.price !== undefined) map.preco = updates.price;
+    if (updates.durationMinutes !== undefined) map.duracao_minutos = updates.durationMinutes;
+    try { await supabase.from('servicos').update(map).eq('id', id); } catch(e) {}
+  };
+
+  const deleteService = async (id: string) => {
+    if (!barbearia) return;
+    setState(prev => ({ ...prev, services: prev.services.filter(s => s.id !== id) }));
+    try { await supabase.from('servicos').delete().eq('id', id); } catch(e) {}
   };
 
   const updateClients = async (clients: Client[]) => {
-    if (!barbearia) return;
     setState(prev => ({ ...prev, clients }));
-    
-    const lastClient = clients[clients.length - 1];
-    if (lastClient && !state.clients.find(c => c.id === lastClient.id)) {
-      await supabase.from('clientes').insert({
+  };
+
+  const addClient = async (client: Omit<Client, 'id'>) => {
+    if (!barbearia) return;
+    const tempId = `temp-${Date.now()}`;
+    setState(prev => ({ ...prev, clients: [...prev.clients, { ...client, id: tempId }] }));
+    try {
+      const { data, error } = await supabase.from('clientes').insert({
         barbearia_id: barbearia.id,
-        nome: lastClient.name,
-        telefone: lastClient.phone
-      });
-    }
+        nome: client.name,
+        telefone: client.phone
+      }).select().single();
+      if(data) setState(prev => ({ ...prev, clients: prev.clients.map(c => c.id === tempId ? { ...c, id: data.id } : c) }));
+    } catch(e) {}
+  };
+
+  const editClient = async (id: string, updates: Partial<Client>) => {
+    if (!barbearia) return;
+    setState(prev => ({ ...prev, clients: prev.clients.map(c => c.id === id ? { ...c, ...updates } : c) }));
+    const map: any = {};
+    if (updates.name) map.nome = updates.name;
+    if (updates.phone) map.telefone = updates.phone;
+    try { await supabase.from('clientes').update(map).eq('id', id); } catch(e) {}
+  };
+
+  const deleteClient = async (id: string) => {
+    if (!barbearia) return;
+    setState(prev => ({ ...prev, clients: prev.clients.filter(c => c.id !== id) }));
+    try { await supabase.from('clientes').delete().eq('id', id); } catch(e) {}
   };
 
   const addBarber = async (barber: Omit<Barber, 'id'>) => {
@@ -476,7 +521,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setState(prev => ({ ...prev, barbers: [...prev.barbers, { ...barber, id: tempId }] }));
     
     try {
-      const { error } = await supabase.from('barbeiros').insert({
+      const { data, error } = await supabase.from('barbeiros').insert({
         barbearia_id: barbearia.id,
         nome: barber.name,
         telefone: barber.phone,
@@ -485,8 +530,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         comissao: barber.comissao,
         pin: barber.pin,
         acesso: barber.acesso
-      });
+      }).select().single();
       if (error) throw error;
+      if (data) {
+        setState(prev => ({ ...prev, barbers: prev.barbers.map(b => b.id === tempId ? { ...b, id: data.id } : b) }));
+      }
     } catch (e) {
       console.error(e);
       setState(prev => ({ ...prev, barbers: prev.barbers.filter(b => b.id !== tempId) }));
@@ -536,7 +584,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateProduct,
         addTransaction,
         updateServices,
+        addService,
+        editService,
+        deleteService,
         updateClients,
+        addClient,
+        editClient,
+        deleteClient,
         addBarber,
         editBarber,
         deleteBarber,
