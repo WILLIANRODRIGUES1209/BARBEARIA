@@ -29,21 +29,13 @@
     "react-router-dom": "^7.15.0",
     "tailwind-merge": "^3.6.0",
     "twilio": "^6.0.2",
-<<<<<<< HEAD
-    "vite": "^6.2.3",
     "web-push": "^3.6.7"
-=======
-    "vite": "^6.2.3"
->>>>>>> f67eaa8a2ae6d296261c137d544b1b6f6bcb6798
   },
   "devDependencies": {
     "@firebase/eslint-plugin-security-rules": "^0.0.2",
     "@types/express": "^4.17.25",
     "@types/node": "^22.14.0",
-<<<<<<< HEAD
     "@types/web-push": "^3.6.4",
-=======
->>>>>>> f67eaa8a2ae6d296261c137d544b1b6f6bcb6798
     "autoprefixer": "^10.4.21",
     "esbuild": "^0.25.12",
     "tailwindcss": "^4.1.14",
