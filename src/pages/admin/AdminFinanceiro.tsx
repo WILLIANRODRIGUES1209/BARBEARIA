@@ -195,9 +195,9 @@ export default function AdminFinanceiro() {
             <input 
               type="number" 
               required
-              min="0.01" step="0.01"
-              value={newTx.amount}
-              onChange={e => setNewTx({...newTx, amount: Number(e.target.value)})}
+              min="0.01" step="any"
+              value={newTx.amount || ''}
+              onChange={e => setNewTx({...newTx, amount: e.target.value === '' ? 0 : Number(e.target.value)})}
               className="w-full px-4 py-3 bg-[#1A1A1A] border border-[#333] text-white rounded focus:border-[#C5A059] focus:outline-none transition-colors"
             />
           </div>

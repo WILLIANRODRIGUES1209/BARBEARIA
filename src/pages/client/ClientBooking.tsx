@@ -49,8 +49,17 @@ export default function ClientBooking() {
   // Generate next 14 days for selection
   const availableDates = Array.from({ length: 14 }).map((_, i) => addDays(new Date(), i));
   
-  // Fake available times
-  const availableTimes = ['09:00', '10:00', '11:00', '13:00', '14:00', '15:00', '16:00', '17:00'];
+  // Available times (sorted chronologically and filtered for today)
+  let availableTimes = ['09:00', '10:00', '11:00', '13:00', '14:00', '15:00', '16:00', '17:00'];
+  if (selectedDate && isSameDay(selectedDate, new Date())) {
+    const currentHour = new Date().getHours();
+    const currentMinute = new Date().getMinutes();
+    availableTimes = availableTimes.filter(time => {
+      const [hour, minute] = time.split(':').map(Number);
+      return hour > currentHour || (hour === currentHour && minute > currentMinute);
+    });
+  }
+  availableTimes = availableTimes.sort((a, b) => a.localeCompare(b));
 
   const service = state.services.find(s => s.id === selectedService);
   const barber = state.barbers.find(b => b.id === selectedBarber);
@@ -252,15 +261,23 @@ export default function ClientBooking() {
                 <div className="grid grid-cols-3 gap-3">
                   {availableTimes.map(time => {
                     const isSelected = selectedTime === time;
-                    // Check if this slot is already booked for this barber.
-                    // We parse the stored ISO string and compare its local formatted equivalent.
-                    const isBooked = state.appointments.some(a => {
-                      if (a.status === 'CANCELLED' || !a.date || a.barberId !== selectedBarber) return false;
+                    // Check if this slot is a fixed client booking or standard booking
+                    const isFixo = state.appointments.some(a => {
+                      if (a.clientName !== 'CLIENTE_FIXO' || a.barberId !== selectedBarber) return false;
+                      // Compare day of week and hour
+                      const apptDate = parseISO(a.date);
+                      return apptDate.getDay() === selectedDate.getDay() && format(apptDate, 'HH:mm') === time;
+                    });
+
+                    const isNormalBooked = state.appointments.some(a => {
+                      if (a.status === 'CANCELLED' || !a.date || a.barberId !== selectedBarber || a.clientName === 'CLIENTE_FIXO') return false;
                       const apptDate = parseISO(a.date);
                       const apptLocalString = format(apptDate, 'yyyy-MM-dd') + 'T' + format(apptDate, 'HH:mm');
                       const slotLocalString = format(selectedDate, 'yyyy-MM-dd') + 'T' + time;
                       return apptLocalString === slotLocalString;
                     });
+
+                    const isBooked = isFixo || isNormalBooked;
                     return (
                       <button
                         key={time}
@@ -379,6 +396,14 @@ export default function ClientBooking() {
                 No dia, aguardamos você pontualmente com o profissional {barber?.name}.
               </p>
             </div>
+            <a
+              href={getWhatsappLink()}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full bg-[#25D366] text-[#0A0A0A] font-bold text-[10px] sm:text-xs uppercase tracking-widest py-3 sm:py-4 rounded-xl hover:bg-[#20ba56] transition-colors flex items-center justify-center gap-2 mb-3 shadow-[0_0_15px_rgba(37,211,102,0.3)] min-h-[44px]"
+            >
+              Confirmar Agendamento pelo WhatsApp
+            </a>
             <button
               onClick={reset}
               className="w-full bg-[#1A1A1A] border border-[#333] text-[#E0E0E0] font-bold text-[10px] sm:text-xs uppercase tracking-widest py-3 sm:py-4 rounded-xl hover:bg-[#222] transition-colors"

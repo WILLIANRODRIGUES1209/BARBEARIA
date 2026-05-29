@@ -86,8 +86,12 @@ export default function InstallPrompt() {
               Instalar Aplicativo
             </h3>
             <p className="text-[#888] text-xs md:text-sm mt-0.5">
+<<<<<<< HEAD
               Instale o Gestão Pro no seu celular para acesso rápido e versão em
               tela cheia.
+=======
+              Instale o Gestão Pro no seu celular para acesso otimizado
+>>>>>>> f67eaa8a2ae6d296261c137d544b1b6f6bcb6798
             </p>
           </div>
         </div>

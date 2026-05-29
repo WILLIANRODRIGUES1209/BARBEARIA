@@ -81,9 +81,8 @@ export default function AdminConfig() {
               type="number" 
               required
               min="1"
-              step="5"
-              value={newService.durationMinutes}
-              onChange={e => setNewService({...newService, durationMinutes: Number(e.target.value)})}
+              value={newService.durationMinutes || ''}
+              onChange={e => setNewService({...newService, durationMinutes: e.target.value === '' ? 0 : Number(e.target.value)})}
               className="w-full px-4 py-3 bg-[#1A1A1A] border border-[#333] text-white rounded focus:border-[#C5A059] focus:outline-none transition-colors"
             />
           </div>
@@ -92,9 +91,9 @@ export default function AdminConfig() {
             <input 
               type="number" 
               required
-              min="0" step="0.01"
-              value={newService.price}
-              onChange={e => setNewService({...newService, price: Number(e.target.value)})}
+              min="0" step="any"
+              value={newService.price || ''}
+              onChange={e => setNewService({...newService, price: e.target.value === '' ? 0 : Number(e.target.value)})}
               className="w-full px-4 py-3 bg-[#1A1A1A] border border-[#333] text-white rounded focus:border-[#C5A059] focus:outline-none transition-colors"
             />
           </div>
@@ -125,18 +124,17 @@ export default function AdminConfig() {
                     <label className="block text-[10px] uppercase tracking-wider text-[#777] mb-1">Tempo (min)</label>
                     <input 
                       type="number" 
-                      value={editForm.durationMinutes}
-                      step="5"
-                      onChange={e => setEditForm({...editForm, durationMinutes: Number(e.target.value)})}
+                      value={editForm.durationMinutes || ''}
+                      onChange={e => setEditForm({...editForm, durationMinutes: e.target.value === '' ? 0 : Number(e.target.value)})}
                       className="w-full px-3 py-2 bg-[#1A1A1A] border border-[#333] text-white rounded focus:border-[#C5A059] focus:outline-none text-sm"
                     />
                   </div>
                   <div>
                     <label className="block text-[10px] uppercase tracking-wider text-[#777] mb-1">Valor (R$)</label>
                     <input 
-                      type="number" step="0.01"
-                      value={editForm.price}
-                      onChange={e => setEditForm({...editForm, price: Number(e.target.value)})}
+                      type="number" step="any"
+                      value={editForm.price || ''}
+                      onChange={e => setEditForm({...editForm, price: e.target.value === '' ? 0 : Number(e.target.value)})}
                       className="w-full px-3 py-2 bg-[#1A1A1A] border border-[#333] text-white rounded focus:border-[#C5A059] focus:outline-none text-sm"
                     />
                   </div>

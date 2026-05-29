@@ -89,8 +89,8 @@ export default function AdminBarbeiros() {
             <label className="block text-xs uppercase tracking-[0.1em] text-[#555] font-medium mb-2">Comissão (%)</label>
             <input 
               type="number" 
-              value={newBarber.comissao}
-              onChange={e => setNewBarber({...newBarber, comissao: Number(e.target.value)})}
+              value={newBarber.comissao || ''}
+              onChange={e => setNewBarber({...newBarber, comissao: e.target.value === '' ? 0 : Number(e.target.value)})}
               className="w-full px-4 py-3 bg-[#1A1A1A] border border-[#333] text-white rounded focus:border-[#C5A059] focus:outline-none transition-colors"
             />
           </div>

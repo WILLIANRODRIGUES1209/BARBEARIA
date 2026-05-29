@@ -343,7 +343,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         barbearia_id: barbearia.id,
         cliente_nome: appt.clientName,
         cliente_telefone: appt.clientPhone,
-        servico_id: appt.serviceId,
+        servico_id: appt.serviceId || null,
         barbeiro_id: appt.barberId,
         data_hora: appt.date,
         status: 'PENDENTE',
