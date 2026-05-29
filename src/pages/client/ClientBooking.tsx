@@ -49,8 +49,92 @@ export default function ClientBooking() {
   // Generate next 14 days for selection
   const availableDates = Array.from({ length: 14 }).map((_, i) => addDays(new Date(), i));
   
-  // Available times (sorted chronologically and filtered for today)
-  let availableTimes = ['09:00', '10:00', '11:00', '13:00', '14:00', '15:00', '16:00', '17:00'];
+  // Convert "HH:mm" to minutes since midnight for comparison
+  const timeToMinutes = (timeStr: string) => {
+    const [h, m] = timeStr.split(':').map(Number);
+    return h * 60 + m;
+  };
+
+  const service = state.services.find(s => s.id === selectedService);
+  const barber = state.barbers.find(b => b.id === selectedBarber);
+
+  // Helper to check if a specific slot is busy/fits within working hours limit
+  const isTimeSlotBooked = (timeStr: string) => {
+    if (!selectedDate || !selectedBarber) return false;
+    
+    const slotStart = timeToMinutes(timeStr);
+    const selectedServiceDuration = service ? service.durationMinutes : 30;
+    const slotEnd = slotStart + selectedServiceDuration;
+    
+    // Check shift boundaries:
+    // Morning shift: 08:00 - 12:00
+    // Afternoon shift: 13:00 - 19:00
+    const isMorning = slotStart >= 8 * 60 && slotStart < 12 * 60;
+    const isAfternoon = slotStart >= 13 * 60 && slotStart < 19 * 60;
+    
+    if (isMorning && slotEnd > 12 * 60) return true; // Overlaps with lunch
+    if (isAfternoon && slotEnd > 19 * 60) return true; // Overlaps after hours
+    if (!isMorning && !isAfternoon) return true; // Not in working hours
+
+    const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+    const selectedDayOfWeek = selectedDate.getDay();
+
+    return state.appointments.some(a => {
+      if (a.status === 'CANCELLED' || !a.date || a.barberId !== selectedBarber) return false;
+
+      // 1. Recurring/Fixed Client
+      if (a.clientName === 'CLIENTE_FIXO') {
+        const apptDate = parseISO(a.date);
+        if (apptDate.getDay() !== selectedDayOfWeek) return false;
+
+        const apptTimeStr = format(apptDate, 'HH:mm');
+        const apptStart = timeToMinutes(apptTimeStr);
+        const apptDuration = 30; // default duration
+        const apptEnd = apptStart + apptDuration;
+
+        return slotStart < apptEnd && apptStart < slotEnd;
+      }
+
+      // 2. Regular appointments & Blocks (AGENDA_BLOQUEADA)
+      const apptDate = parseISO(a.date);
+      const apptDateStr = format(apptDate, 'yyyy-MM-dd');
+      
+      if (apptDateStr !== selectedDateStr) return false;
+
+      const apptTimeStr = format(apptDate, 'HH:mm');
+      const apptStart = timeToMinutes(apptTimeStr);
+      
+      let apptDuration = 30;
+      if (a.clientName === 'AGENDA_BLOQUEADA') {
+        apptDuration = 60; // blocks are usually 60 minutes
+      } else {
+        const apptService = state.services.find(s => s.id === a.serviceId);
+        apptDuration = apptService ? apptService.durationMinutes : 30;
+      }
+      
+      const apptEnd = apptStart + apptDuration;
+
+      return slotStart < apptEnd && apptStart < slotEnd;
+    });
+  };
+
+  // Generate 15-minute slot times list
+  const baseTimes: string[] = [];
+  // Morning: 08:00 to 12:00
+  for (let h = 8; h < 12; h++) {
+    for (let m = 0; m < 60; m += 15) {
+      baseTimes.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+    }
+  }
+  // Afternoon: 13:00 to 19:00
+  for (let h = 13; h < 19; h++) {
+    for (let m = 0; m < 60; m += 15) {
+      baseTimes.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+    }
+  }
+
+  // Filter out past times for today
+  let availableTimes = [...baseTimes];
   if (selectedDate && isSameDay(selectedDate, new Date())) {
     const currentHour = new Date().getHours();
     const currentMinute = new Date().getMinutes();
@@ -60,9 +144,6 @@ export default function ClientBooking() {
     });
   }
   availableTimes = availableTimes.sort((a, b) => a.localeCompare(b));
-
-  const service = state.services.find(s => s.id === selectedService);
-  const barber = state.barbers.find(b => b.id === selectedBarber);
 
   const handleBooking = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -261,23 +342,7 @@ export default function ClientBooking() {
                 <div className="grid grid-cols-3 gap-3">
                   {availableTimes.map(time => {
                     const isSelected = selectedTime === time;
-                    // Check if this slot is a fixed client booking or standard booking
-                    const isFixo = state.appointments.some(a => {
-                      if (a.clientName !== 'CLIENTE_FIXO' || a.barberId !== selectedBarber) return false;
-                      // Compare day of week and hour
-                      const apptDate = parseISO(a.date);
-                      return apptDate.getDay() === selectedDate.getDay() && format(apptDate, 'HH:mm') === time;
-                    });
-
-                    const isNormalBooked = state.appointments.some(a => {
-                      if (a.status === 'CANCELLED' || !a.date || a.barberId !== selectedBarber || a.clientName === 'CLIENTE_FIXO') return false;
-                      const apptDate = parseISO(a.date);
-                      const apptLocalString = format(apptDate, 'yyyy-MM-dd') + 'T' + format(apptDate, 'HH:mm');
-                      const slotLocalString = format(selectedDate, 'yyyy-MM-dd') + 'T' + time;
-                      return apptLocalString === slotLocalString;
-                    });
-
-                    const isBooked = isFixo || isNormalBooked;
+                    const isBooked = isTimeSlotBooked(time);
                     return (
                       <button
                         key={time}

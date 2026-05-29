@@ -21,7 +21,22 @@ import { Appointment } from '../../types';
 import toast from 'react-hot-toast';
 
 const WEEKDAYS = ["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"];
-const TIMES = ['09:00', '10:00', '11:00', '13:00', '14:00', '15:00', '16:00', '17:00'];
+const TIMES = (() => {
+  const list = [];
+  // Morning: 08:00 to 12:00
+  for (let h = 8; h < 12; h++) {
+    for (let m = 0; m < 60; m += 15) {
+      list.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+    }
+  }
+  // Afternoon: 13:00 to 19:00
+  for (let h = 13; h < 19; h++) {
+    for (let m = 0; m < 60; m += 15) {
+      list.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+    }
+  }
+  return list;
+})();
 
 export default function AdminAgenda() {
   const { state, updateAppointmentStatus, payAppointment, addAppointment } = useAppContext();
