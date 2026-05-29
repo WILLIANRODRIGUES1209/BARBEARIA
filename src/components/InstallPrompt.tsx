@@ -8,20 +8,17 @@ export default function InstallPrompt() {
   const [isStandalone, setIsStandalone] = useState(false);
 
   useEffect(() => {
-    // Check if already installed
     const isAppStandalone =
       window.matchMedia("(display-mode: standalone)").matches ||
       ("standalone" in window.navigator &&
         (window.navigator as any).standalone);
     setIsStandalone(isAppStandalone);
 
-    // Detect iOS
     const userAgent = window.navigator.userAgent.toLowerCase();
     const isIOSDevice = /iphone|ipad|ipod/.test(userAgent);
     setIsIOS(isIOSDevice);
 
     if (isIOSDevice && !isAppStandalone) {
-      // Show iOS prompt after a short delay
       const timer = setTimeout(() => {
         const hasSeenPrompt = localStorage.getItem("hasSeenIOSPrompt");
         if (!hasSeenPrompt) {
@@ -38,7 +35,6 @@ export default function InstallPrompt() {
     };
 
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
-
     return () => {
       window.removeEventListener(
         "beforeinstallprompt",
@@ -76,7 +72,6 @@ export default function InstallPrompt() {
         >
           <X size={18} />
         </button>
-
         <div className="flex items-center gap-4">
           <div className="bg-[#E5B869] text-black p-3 rounded-xl shrink-0">
             <Download size={24} />
@@ -86,16 +81,11 @@ export default function InstallPrompt() {
               Instalar Aplicativo
             </h3>
             <p className="text-[#888] text-xs md:text-sm mt-0.5">
-<<<<<<< HEAD
               Instale o Gestão Pro no seu celular para acesso rápido e versão em
               tela cheia.
-=======
-              Instale o Gestão Pro no seu celular para acesso otimizado
->>>>>>> f67eaa8a2ae6d296261c137d544b1b6f6bcb6798
             </p>
           </div>
         </div>
-
         {isIOS ? (
           <div className="mt-2 bg-[#222] p-3 rounded-xl border border-[#333]">
             <p className="text-[#CCC] text-xs text-center">
