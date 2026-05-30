@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 
 export interface AppContextType {
   state: AppState;
-  addAppointment: (appointment: Omit<Appointment, 'id' | 'status'>) => void;
+  addAppointment: (appointment: Omit<Appointment, 'id' | 'status'>, initialStatus?: Appointment['status']) => void;
   updateAppointmentStatus: (id: string, status: Appointment['status']) => void;
   payAppointment: (id: string, paymentMethod: string, amount: number, description: string) => void;
   addProduct: (product: Omit<Product, 'id'>) => void;
@@ -309,7 +309,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [barbearia]);
 
-  const addAppointment = async (appt: Omit<Appointment, 'id' | 'status'>) => {
+  const addAppointment = async (appt: Omit<Appointment, 'id' | 'status'>, initialStatus: Appointment['status'] = 'PENDING') => {
     if (!barbearia) return;
     
     // Auto-cadastro do Cliente
@@ -334,7 +334,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       appointments: [...prev.appointments, {
         ...appt,
         id: tempId,
-        status: 'PENDING' as const
+        status: initialStatus
       }]
     }));
 
@@ -346,7 +346,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         servico_id: appt.serviceId || null,
         barbeiro_id: appt.barberId,
         data_hora: appt.date,
-        status: 'PENDENTE',
+        status: initialStatus === 'COMPLETED' ? 'CONCLUIDO' : (initialStatus === 'PENDING' ? 'PENDENTE' : 'CANCELADO'),
       }).select().single();
       
       if (error) {

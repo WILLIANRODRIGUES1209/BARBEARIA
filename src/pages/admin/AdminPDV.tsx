@@ -5,7 +5,7 @@ import { Product, Service, Client } from '../../types';
 import toast from 'react-hot-toast';
 
 export default function AdminPDV() {
-  const { state, addTransaction, updateProduct } = useAppContext();
+  const { state, addTransaction, updateProduct, addAppointment } = useAppContext();
 
   const authData = sessionStorage.getItem('app_auth_state');
   const authState = authData ? JSON.parse(authData) : null;
@@ -81,6 +81,22 @@ export default function AdminPDV() {
           date: new Date().toISOString(),
         });
       }
+
+      // Record completed appointments for services sold in PDV so they appear in Meu Historico and reports
+      cartItems.forEach(item => {
+        if (item.type === 'SERVICE') {
+          const clientPhone = state.clients.find(c => c.id === selectedClient)?.phone || '0000000000';
+          for (let k = 0; k < item.quantity; k++) {
+            addAppointment({
+              clientName,
+              clientPhone,
+              serviceId: item.id,
+              barberId: selectedBarber,
+              date: new Date().toISOString()
+            }, 'COMPLETED');
+          }
+        }
+      });
     }
 
     toast.success('Venda finalizada com sucesso!');
