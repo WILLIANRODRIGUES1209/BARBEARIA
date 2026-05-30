@@ -1,11 +1,15 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { useAppContext } from '../../context/AppContext';
-import { DollarSign, Scissors, Calendar as CalendarIcon, Hash } from 'lucide-react';
+import { DollarSign, Scissors, Calendar as CalendarIcon, RefreshCw } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 export default function AdminMeuHistorico() {
-  const { state } = useAppContext();
+  const { state, refreshData } = useAppContext();
+
+  useEffect(() => {
+    refreshData();
+  }, []);
   
   const authData = sessionStorage.getItem('app_auth_state');
   const authState = authData ? JSON.parse(authData) : null;
@@ -40,9 +44,20 @@ export default function AdminMeuHistorico() {
   
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-bold text-white mb-2">Meu Histórico e Comissões</h1>
-        <p className="text-sm text-[#777]">Acompanhe seus cortes realizados e comissões</p>
+      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-white mb-2">Meu Histórico e Comissões</h1>
+          <p className="text-sm text-[#777]">Acompanhe seus cortes realizados e comissões</p>
+        </div>
+        <button 
+          onClick={() => {
+            refreshData();
+          }}
+          className="flex items-center justify-center gap-2 self-start px-4 py-2.5 bg-[#121212] hover:bg-[#1A1A1A] border border-[#222] hover:border-[#C5A059] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer"
+        >
+          <RefreshCw size={14} className="text-[#C5A059]" />
+          Atualizar Dados
+        </button>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

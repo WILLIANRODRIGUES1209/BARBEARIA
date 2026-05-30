@@ -23,6 +23,7 @@ export interface AppContextType {
   addBarber: (barber: Omit<Barber, 'id'>) => Promise<void>;
   editBarber: (id: string, updates: Partial<Barber>) => Promise<void>;
   deleteBarber: (id: string) => Promise<void>;
+  refreshData: () => Promise<void>;
 }
 
 const DEFAULT_SERVICES: Service[] = [
@@ -105,49 +106,61 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [state, setState] = useState<AppState>(INITIAL_STATE);
   const { barbearia } = useBarbearia();
 
+  const refreshData = async () => {
+    if (!barbearia) return;
+    try {
+      const [
+        { data: agendamentos }, 
+        { data: produtos }, 
+        { data: transacoes },
+        { data: servicos },
+        { data: barbeiros },
+        { data: clientes }
+      ] = await Promise.all([
+        supabase.from('agendamentos').select('*').eq('barbearia_id', barbearia.id),
+        supabase.from('produtos').select('*').eq('barbearia_id', barbearia.id),
+        supabase.from('transacoes').select('*').eq('barbearia_id', barbearia.id),
+        supabase.from('servicos').select('*').eq('barbearia_id', barbearia.id),
+        supabase.from('barbeiros').select('*').eq('barbearia_id', barbearia.id),
+        supabase.from('clientes').select('*').eq('barbearia_id', barbearia.id)
+      ]);
+      
+      setState(prev => ({
+        ...prev,
+        services: (servicos || []).map(mapService),
+        barbers: (barbeiros || []).map(mapBarber),
+        clients: (clientes || []).map(mapClient),
+        appointments: (agendamentos || []).map(mapAppointment),
+        products: (produtos || []).map(mapProduct),
+        transactions: (transacoes || []).map(mapTransaction),
+        isConnected: true
+      }));
+    } catch (err) {
+      console.error("Supabase load error:", err);
+      setState(prev => ({ ...prev, isConnected: false }));
+    }
+  };
+
   useEffect(() => {
     if (!barbearia) return;
-    let mounted = true;
 
-    async function loadData() {
-      try {
-        const [
-          { data: agendamentos }, 
-          { data: produtos }, 
-          { data: transacoes },
-          { data: servicos },
-          { data: barbeiros },
-          { data: clientes }
-        ] = await Promise.all([
-          supabase.from('agendamentos').select('*').eq('barbearia_id', barbearia.id),
-          supabase.from('produtos').select('*').eq('barbearia_id', barbearia.id),
-          supabase.from('transacoes').select('*').eq('barbearia_id', barbearia.id),
-          supabase.from('servicos').select('*').eq('barbearia_id', barbearia.id),
-          supabase.from('barbeiros').select('*').eq('barbearia_id', barbearia.id),
-          supabase.from('clientes').select('*').eq('barbearia_id', barbearia.id)
-        ]);
-        
-        if (mounted) {
-          setState(prev => ({
-            ...prev,
-            services: (servicos || []).map(mapService),
-            barbers: (barbeiros || []).map(mapBarber),
-            clients: (clientes || []).map(mapClient),
-            appointments: (agendamentos || []).map(mapAppointment),
-            products: (produtos || []).map(mapProduct),
-            transactions: (transacoes || []).map(mapTransaction),
-            isConnected: true
-          }));
-        }
-      } catch (err) {
-        console.error("Supabase load error:", err);
-        if (mounted) {
-          setState(prev => ({ ...prev, isConnected: false }));
-        }
+    // Initial load
+    refreshData();
+
+    // Auto-refresh when tab gains focus or visibility state changes
+    const handleFocusOrVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refreshData();
       }
-    }
-    
-    loadData();
+    };
+
+    window.addEventListener('focus', handleFocusOrVisibilityChange);
+    document.addEventListener('visibilitychange', handleFocusOrVisibilityChange);
+
+    // High fidelity backup timer (every 15 seconds)
+    const backupInterval = setInterval(() => {
+      refreshData();
+    }, 15000);
 
     const playBeep = () => {
       try {
@@ -299,7 +312,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       .subscribe();
 
     return () => {
-      mounted = false;
+      window.removeEventListener('focus', handleFocusOrVisibilityChange);
+      document.removeEventListener('visibilitychange', handleFocusOrVisibilityChange);
+      clearInterval(backupInterval);
       supabase.removeChannel(channelAgendamentos);
       supabase.removeChannel(channelProdutos);
       supabase.removeChannel(channelTransacoes);
@@ -711,6 +726,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addBarber,
         editBarber,
         deleteBarber,
+        refreshData,
       }}
     >
       {children}

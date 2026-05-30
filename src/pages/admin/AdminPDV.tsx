@@ -47,6 +47,15 @@ export default function AdminPDV() {
   const handleCheckout = () => {
     if (cartItems.length === 0) return;
 
+    // Guard: Prevent checkout of services without identifying the responsible professional
+    const hasService = cartItems.some(i => i.type === 'SERVICE');
+    if (hasService && !selectedBarber) {
+      toast.error('Selecione o profissional (barbeiro) responsável pelo serviço antes de prosseguir!', {
+        icon: '⚠️'
+      });
+      return;
+    }
+
     // Remove from stock
     cartItems.forEach(item => {
       if (item.type === 'PRODUCT') {
