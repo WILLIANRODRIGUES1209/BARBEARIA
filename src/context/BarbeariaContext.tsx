@@ -20,8 +20,26 @@ const BarbeariaContext = createContext<BarbeariaContextType | undefined>(undefin
 
 export const BarbeariaProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [barbearia, setBarbearia] = useState<BarbeariaState | null>(null);
+  const [barbearia, setBarbeariaState] = useState<BarbeariaState | null>(() => {
+    try {
+      const stored = localStorage.getItem('app_barbearia');
+      return stored ? JSON.parse(stored) : null;
+    } catch (e) {
+      return null;
+    }
+  });
   const [loading, setLoading] = useState(true);
+
+  const setBarbearia = (data: BarbeariaState | null) => {
+    setBarbeariaState(data);
+    try {
+      if (data) {
+        localStorage.setItem('app_barbearia', JSON.stringify(data));
+      } else {
+        localStorage.removeItem('app_barbearia');
+      }
+    } catch (e) {}
+  };
 
   const fetchBySlug = async (slug: string) => {
     try {
@@ -56,7 +74,17 @@ export const BarbeariaProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (session?.user) {
         fetchBarbeariaData(session.user);
       } else {
-        setBarbearia(null);
+        const authData = sessionStorage.getItem('app_auth_state');
+        let isBarbeiroLoggedIn = false;
+        if (authData) {
+          try {
+            isBarbeiroLoggedIn = JSON.parse(authData)?.role === 'BARBEIRO';
+          } catch (e) {}
+        }
+        
+        if (!isBarbeiroLoggedIn) {
+          setBarbearia(null);
+        }
         setLoading(false);
       }
     });

@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import { Scissors, LayoutDashboard, Calendar as CalendarIcon, Package, DollarSign, User, Users, Settings, LogOut, BarChart3, ShoppingCart } from 'lucide-react';
 import { AppProvider, useAppContext } from './context/AppContext';
 import { BarbeariaProvider, useBarbearia } from './context/BarbeariaContext';
+import { supabase } from './supabase';
 
 // Pages
 import ClientBooking from './pages/client/ClientBooking';
@@ -166,15 +167,21 @@ export default function App() {
     return { isAuthenticated: false, role: 'ADMIN', barbeiroId: null };
   });
 
+  // Log out or change login state
   const handleLogin = (role: 'ADMIN' | 'BARBEIRO', barbeiroId: string | null = null) => {
     const newState = { isAuthenticated: true, role, barbeiroId };
     setAuthState(newState);
     sessionStorage.setItem('app_auth_state', JSON.stringify(newState));
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setAuthState({ isAuthenticated: false, role: 'ADMIN', barbeiroId: null });
     sessionStorage.removeItem('app_auth_state');
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.warn('Supabase signOut warning:', e);
+    }
   };
 
   const ProtectedRoute = ({ children, requireAdmin }: { children: React.ReactNode, requireAdmin?: boolean }) => {

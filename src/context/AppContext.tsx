@@ -104,7 +104,7 @@ const mapClient = (c: any) => ({
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, setState] = useState<AppState>(INITIAL_STATE);
-  const { barbearia } = useBarbearia();
+  const { barbearia, user } = useBarbearia();
 
   const refreshData = async () => {
     if (!barbearia) return;
@@ -327,34 +327,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const addAppointment = async (appt: Omit<Appointment, 'id' | 'status'>, initialStatus: Appointment['status'] = 'PENDING') => {
     if (!barbearia) return;
     
-    // Auto-cadastro do Cliente
-    try {
-      const existingClient = state.clients.find(c => c.phone.replace(/\D/g, '') === appt.clientPhone.replace(/\D/g, ''));
-      if (!existingClient) {
-        const { data: newClient } = await supabase.from('clientes').insert({
-          barbearia_id: barbearia.id,
-          nome: appt.clientName,
-          telefone: appt.clientPhone
-        }).select('id').single();
-      } else if (existingClient.name !== appt.clientName) {
-        // Opcional: atualizar o nome se ele mudou
-        await supabase.from('clientes').update({ nome: appt.clientName }).eq('id', existingClient.id);
+    // Generate high-fidelity UUID on the client side
+    const appointmentId = (() => {
+      if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
       }
-    } catch(e) { console.error('Auto-cadastro falhou:', e); }
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = (Math.random() * 16) | 0;
+        const v = c === 'x' ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+      });
+    })();
+    
+    // Auto-cadastro do Cliente - Only run if user is authenticated (to avoid 401 Unauthorized errors for guests)
+    if (user) {
+      try {
+        const existingClient = state.clients.find(c => c.phone.replace(/\D/g, '') === appt.clientPhone.replace(/\D/g, ''));
+        if (!existingClient) {
+          await supabase.from('clientes').insert({
+            barbearia_id: barbearia.id,
+            nome: appt.clientName,
+            telefone: appt.clientPhone
+          });
+        } else if (existingClient.name !== appt.clientName) {
+          await supabase.from('clientes').update({ nome: appt.clientName }).eq('id', existingClient.id);
+        }
+      } catch(e) { console.error('Auto-cadastro falhou:', e); }
+    }
 
     // Optimistic update
-    const tempId = `temp-${Date.now()}`;
     setState(prev => ({
       ...prev,
       appointments: [...prev.appointments, {
         ...appt,
-        id: tempId,
+        id: appointmentId,
         status: initialStatus
       }]
     }));
 
     try {
-      const { data, error } = await supabase.from('agendamentos').insert({
+      const { error } = await supabase.from('agendamentos').insert({
+        id: appointmentId,
         barbearia_id: barbearia.id,
         cliente_nome: appt.clientName,
         cliente_telefone: appt.clientPhone,
@@ -362,7 +375,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         barbeiro_id: appt.barberId,
         data_hora: appt.date,
         status: initialStatus === 'COMPLETED' ? 'CONCLUIDO' : (initialStatus === 'PENDING' ? 'PENDENTE' : 'CANCELADO'),
-      }).select().single();
+      });
       
       if (error) {
         console.error('Error inserting appointment:', error);
@@ -370,10 +383,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Revert optimistic update on failure
         setState(prev => ({
           ...prev,
-          appointments: prev.appointments.filter(a => a.id !== tempId)
+          appointments: prev.appointments.filter(a => a.id !== appointmentId)
         }));
-      } else if (data) {
-        setState(prev => ({ ...prev, appointments: prev.appointments.map(a => a.id === tempId ? { ...a, id: data.id } : a) }));
+      } else {
         // Find service name
         const service = state.services.find(s => s.id === appt.serviceId);
         // Format time properly to send to notify
@@ -389,7 +401,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             date: dateObj.toLocaleDateString('pt-BR'),
             time: dateObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
             deviceId: typeof window !== 'undefined' ? localStorage.getItem('deviceId') : undefined,
-            appointmentId: data.id
+            appointmentId: appointmentId
           })
         }).catch(err => console.error(err));
       }
@@ -398,7 +410,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Revert optimistic update on failure
       setState(prev => ({
         ...prev,
-        appointments: prev.appointments.filter(a => a.id !== tempId)
+        appointments: prev.appointments.filter(a => a.id !== appointmentId)
       }));
     }
   };
@@ -453,7 +465,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     try {
-      await supabase.from('agendamentos').update({ status: 'CONCLUIDO' }).eq('id', id);
+      const { error: updateError } = await supabase.from('agendamentos').update({ status: 'CONCLUIDO' }).eq('id', id);
+      if (updateError) throw updateError;
+
       const rows = [{
         barbearia_id: barbearia.id,
         tipo: 'ENTRADA',
@@ -464,9 +478,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (commissionEntity) {
         rows.push(commissionEntity);
       }
-      await supabase.from('transacoes').insert(rows);
-    } catch (err) {
-      console.error(err);
+      const { error: insertError } = await supabase.from('transacoes').insert(rows);
+      if (insertError) throw insertError;
+
+      toast.success('Pagamento recebido com sucesso!');
+    } catch (err: any) {
+      console.error('Erro ao processar pagamento:', err);
+      toast.error(`Falha ao registrar pagamento: ${err?.message || 'Permissão negada ou erro de rede.'}`);
+      refreshData();
     }
   };
 
@@ -484,7 +503,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       'COMPLETED': 'CONCLUIDO',
       'CANCELLED': 'CANCELADO'
     };
-    await supabase.from('agendamentos').update({ status: statusMap[status] || status }).eq('id', id);
+
+    try {
+      const { error: updateError } = await supabase.from('agendamentos').update({ status: statusMap[status] || status }).eq('id', id);
+      if (updateError) throw updateError;
+      toast.success('Status do agendamento atualizado!');
+    } catch (err: any) {
+      console.error('Erro ao atualizar status:', err);
+      toast.error(`Falha ao atualizar status: ${err?.message || 'Permissão negada ou erro de rede.'}`);
+      refreshData();
+    }
 
     if (status === 'CANCELLED') {
        const appt = state.appointments.find(a => a.id === id);
@@ -546,9 +574,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (updates.quantity !== undefined) mappedUpdates.quantidade = updates.quantity;
     
     try {
-      await supabase.from('produtos').update(mappedUpdates).eq('id', id);
-    } catch (err) {
-      console.error(err);
+      const { error } = await supabase.from('produtos').update(mappedUpdates).eq('id', id);
+      if (error) throw error;
+    } catch (err: any) {
+      console.error('Erro ao atualizar produto:', err);
+      toast.error(`Falha ao salvar produto: ${err?.message || 'Permissão negada ou erro de rede.'}`);
+      refreshData();
     }
   };
 
@@ -571,12 +602,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         data: t.date || new Date().toISOString()
       }).select().single();
       if (error) {
+        toast.error(`Falha ao registrar transação: ${error.message || 'Permissão negada.'}`);
         setState(prev => ({ ...prev, transactions: prev.transactions.filter(tr => tr.id !== tempId) }));
       } else if (data) {
         setState(prev => ({ ...prev, transactions: prev.transactions.map(tr => tr.id === tempId ? { ...tr, id: data.id } : tr) }));
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      toast.error(`Falha ao registrar transação: ${err?.message || 'Permissão negada ou erro de rede.'}`);
       setState(prev => ({ ...prev, transactions: prev.transactions.filter(tr => tr.id !== tempId) }));
     }
   };

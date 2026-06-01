@@ -43,13 +43,23 @@ export default function AdminLogin({ onLogin }: { onLogin: (role: 'ADMIN' | 'BAR
           .eq('pin', pin)
           .single();
 
-        if (barbError || !barb) {
+        if (barbError) {
+          console.error('Erro ao buscar barbeiro:', barbError);
+          if (barbError.code === 'PGRST116') {
+            throw new Error('Nº de Acesso ou PIN incorretos.');
+          } else {
+            throw new Error(`Erro de conexão com o Supabase: ${barbError.message || 'Erro de rede'}. Verifique se suas credenciais no arquivo .env estão corretas.`);
+          }
+        }
+
+        if (!barb) {
           throw new Error('Nº de Acesso ou PIN incorretos.');
         }
 
         const { data: bData, error: bError } = await supabase.from('barbearias').select('slug').eq('id', barb.barbearia_id).single();
         if (bError || !bData) {
-          throw new Error('Erro ao carregar os dados da barbearia vinculada.');
+          console.error('Erro ao buscar barbearia:', bError);
+          throw new Error(`Erro ao carregar os dados da barbearia vinculada: ${bError?.message || 'não localizada'}`);
         }
 
         // We fetch the barbearia to populate context

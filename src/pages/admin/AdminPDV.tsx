@@ -129,18 +129,34 @@ export default function AdminPDV() {
           <div className="bg-[#121212] rounded-2xl border border-[#222] p-6">
             <h2 className="text-sm font-bold text-white uppercase tracking-widest mb-4">Produtos</h2>
             <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-              {state.products.map(p => (
-                <button
-                  key={`prod-${p.id}`}
-                  onClick={() => addToCart(p, 'PRODUCT')}
-                  disabled={p.quantity <= 0}
-                  className={`p-4 rounded-xl border text-left transition-all ${p.quantity > 0 ? 'border-[#333] hover:border-[#C5A059]' : 'border-[#222] opacity-50 cursor-not-allowed'}`}
-                >
-                  <p className="font-medium text-white truncate">{p.name}</p>
-                  <p className="text-[#C5A059] font-bold text-sm mt-1">R$ {p.price.toFixed(2)}</p>
-                  <p className="text-[10px] text-[#777] mt-2">Estoque: {p.quantity}</p>
-                </button>
-              ))}
+              {state.products.map(p => {
+                const cartItem = cartItems.find(i => i.id === p.id && i.type === 'PRODUCT');
+                const isSelected = !!cartItem;
+                return (
+                  <button
+                    key={`prod-${p.id}`}
+                    onClick={() => addToCart(p, 'PRODUCT')}
+                    disabled={p.quantity <= 0}
+                    className={`p-4 rounded-xl border text-left transition-all relative overflow-hidden ${
+                      isSelected 
+                        ? 'border-[#C5A059] bg-[#C5A05911] shadow-[0_0_12px_rgba(197,160,89,0.15)] font-semibold' 
+                        : p.quantity > 0 
+                          ? 'border-[#333] hover:border-[#C5A059]' 
+                          : 'border-[#222] opacity-50 cursor-not-allowed'
+                    }`}
+                  >
+                    {isSelected && (
+                      <div className="absolute top-2 right-2 flex items-center gap-1 bg-[#C5A059] text-black text-[10px] font-black px-1.5 py-0.5 rounded-full shadow-md">
+                        <Check size={10} strokeWidth={3} />
+                        <span>{cartItem.quantity}</span>
+                      </div>
+                    )}
+                    <p className="font-medium text-white truncate pr-8">{p.name}</p>
+                    <p className="text-[#C5A059] font-bold text-sm mt-1">R$ {p.price.toFixed(2)}</p>
+                    <p className="text-[10px] text-[#777] mt-2">Estoque: {p.quantity}</p>
+                  </button>
+                );
+              })}
               {state.products.length === 0 && <p className="text-[#777] text-sm col-span-full">Nenhum produto em estoque.</p>}
             </div>
           </div>
@@ -148,16 +164,30 @@ export default function AdminPDV() {
           <div className="bg-[#121212] rounded-2xl border border-[#222] p-6">
             <h2 className="text-sm font-bold text-white uppercase tracking-widest mb-4">Serviços</h2>
             <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-              {state.services.map(s => (
-                <button
-                  key={`svc-${s.id}`}
-                  onClick={() => addToCart(s, 'SERVICE')}
-                  className="p-4 rounded-xl border border-[#333] hover:border-[#C5A059] text-left transition-all"
-                >
-                  <p className="font-medium text-white truncate">{s.name}</p>
-                  <p className="text-[#C5A059] font-bold text-sm mt-1">R$ {s.price.toFixed(2)}</p>
-                </button>
-              ))}
+              {state.services.map(s => {
+                const cartItem = cartItems.find(i => i.id === s.id && i.type === 'SERVICE');
+                const isSelected = !!cartItem;
+                return (
+                  <button
+                    key={`svc-${s.id}`}
+                    onClick={() => addToCart(s, 'SERVICE')}
+                    className={`p-4 rounded-xl border text-left transition-all relative overflow-hidden ${
+                      isSelected 
+                        ? 'border-[#C5A059] bg-[#C5A05911] shadow-[0_0_12px_rgba(197,160,89,0.15)] font-semibold' 
+                        : 'border-[#333] hover:border-[#C5A059]'
+                    }`}
+                  >
+                    {isSelected && (
+                      <div className="absolute top-2 right-2 flex items-center gap-1 bg-[#C5A059] text-black text-[10px] font-black px-1.5 py-0.5 rounded-full shadow-md">
+                        <Check size={10} strokeWidth={3} />
+                        <span>{cartItem.quantity}</span>
+                      </div>
+                    )}
+                    <p className="font-medium text-white truncate pr-8">{s.name}</p>
+                    <p className="text-[#C5A059] font-bold text-sm mt-1">R$ {s.price.toFixed(2)}</p>
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
