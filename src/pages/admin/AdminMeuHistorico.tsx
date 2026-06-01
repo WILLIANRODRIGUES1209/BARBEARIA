@@ -27,9 +27,67 @@ export default function AdminMeuHistorico() {
       .filter(a => a.barberId === currentBarbeiroId && a.status === 'COMPLETED')
       .map(appt => {
         const service = state.services.find(s => s.id === appt.serviceId);
-        const valorServico = service?.price || 0;
-        const valorComissao = (valorServico * comissaoPercent) / 100;
+        const defaultServicePrice = service?.price || 0;
         
+        // 1. Try to find the corresponding INCOME transaction
+        const incomeTx = state.transactions.find(t => {
+          if (t.type !== 'INCOME') return false;
+          
+          // a. Agenda reference check
+          if (t.description.includes(`Ref: ${appt.id}`)) {
+            return true;
+          }
+          
+          // b. PDV check out check
+          if (t.description.includes('Venda PDV')) {
+            const tTime = new Date(t.date).getTime();
+            const aTime = new Date(appt.date).getTime();
+            if (Math.abs(tTime - aTime) <= 15000 && t.description.includes(appt.clientName)) {
+              return true;
+            }
+          }
+          
+          return false;
+        });
+
+        // 2. Try to find the corresponding commission transaction
+        let commissionTx = null;
+        if (incomeTx) {
+          commissionTx = state.transactions.find(other => {
+            if (other.type !== 'EXPENSE') return false;
+            const isCommission = other.description.toLowerCase().includes('comissão') || other.description.toLowerCase().includes('comissao');
+            if (!isCommission) return false;
+            
+            const targetTime = new Date(incomeTx.date).getTime();
+            const otherTime = new Date(other.date).getTime();
+            return Math.abs(targetTime - otherTime) <= 15000;
+          });
+        }
+
+        // 3. Determine the actual service value and commission value
+        let valorComissao = 0;
+        let valorServico = defaultServicePrice;
+
+        if (commissionTx) {
+          // If we have an exact commission transaction, that is our source of truth for the commission!
+          valorComissao = commissionTx.amount;
+          
+          // If commission percentage is greater than 0, we can back-calculate the service value
+          if (comissaoPercent > 0) {
+            valorServico = (valorComissao * 100) / comissaoPercent;
+          } else if (incomeTx) {
+            valorServico = incomeTx.amount;
+          }
+        } else if (incomeTx) {
+          // If we only have the income transaction but no commission transaction, calculate based on comissaoPercent
+          valorServico = incomeTx.amount;
+          valorComissao = (valorServico * comissaoPercent) / 100;
+        } else {
+          // If neither, fallback to service prices
+          valorServico = defaultServicePrice;
+          valorComissao = (valorServico * comissaoPercent) / 100;
+        }
+
         return {
           ...appt,
           serviceName: service?.name || 'Serviço Excluído',
@@ -38,7 +96,7 @@ export default function AdminMeuHistorico() {
         };
       })
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [state.appointments, state.services, currentBarbeiroId, comissaoPercent]);
+  }, [state.appointments, state.services, state.transactions, currentBarbeiroId, comissaoPercent]);
 
   const totalComissoes = agendamentos.reduce((acc, curr) => acc + curr.valorComissao, 0);
   const totalCortes = agendamentos.length;
