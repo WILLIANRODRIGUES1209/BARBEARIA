@@ -183,13 +183,13 @@ export default function AdminConfig() {
         )}
       </div>
 
-      {/* Zona de Perigo / Limpeza de Dados */}
+      {/* Zerar dados / Limpeza de Dados */}
       <div className="bg-[#121212] rounded-2xl border border-red-900/40 p-6 mt-12">
         <h2 className="text-sm font-bold text-red-500 uppercase tracking-widest mb-2 flex items-center gap-2">
           <Trash2 size={16} /> Zona de Perigo
         </h2>
         <p className="text-xs text-[#777] mb-6 max-w-2xl">
-          Se você utilizou o sistema para fazer testes e agora deseja começar a utilizá-lo de forma definitiva, você pode zerar todas as informações de agendamentos e transações de recebimentos com um único clique.
+          Zerar todos os dados.
         </p>
         
         <div className="flex flex-col sm:flex-row gap-4">
@@ -201,7 +201,7 @@ export default function AdminConfig() {
             }}
             className="px-5 py-3 rounded-xl border border-red-500/30 bg-red-500/10 text-red-400 font-bold text-xs uppercase tracking-widest hover:bg-red-500/20 active:bg-red-500/30 transition-all flex items-center justify-center gap-2 w-full sm:w-auto cursor-pointer"
           >
-            <Trash2 size={16} /> Zerar Agendamentos e Recebimentos de Teste
+            <Trash2 size={16} /> Zerar todos os dados
           </button>
         </div>
       </div>
