@@ -144,10 +144,10 @@ export default function AdminPDV() {
                     disabled={p.quantity <= 0}
                     className={`p-4 rounded-xl border text-left transition-all relative overflow-hidden ${
                       isSelected 
-                        ? 'border-[#C5A059] bg-[#C5A05911] shadow-[0_0_12px_rgba(197,160,89,0.15)] font-semibold' 
+                        ? 'border-[#C5A059] bg-[#C5A05915] shadow-[0_0_12px_rgba(197,160,89,0.2)] font-semibold' 
                         : p.quantity > 0 
-                          ? 'border-[#333] hover:border-[#C5A059]' 
-                          : 'border-[#222] opacity-50 cursor-not-allowed'
+                          ? 'border-[#222] bg-[#161616] hover:border-[#C5A059]' 
+                          : 'border-[#1a1a1a] bg-[#0c0c0c] opacity-40 cursor-not-allowed'
                     }`}
                   >
                     {isSelected && (
@@ -178,8 +178,8 @@ export default function AdminPDV() {
                     onClick={() => addToCart(s, 'SERVICE')}
                     className={`p-4 rounded-xl border text-left transition-all relative overflow-hidden ${
                       isSelected 
-                        ? 'border-[#C5A059] bg-[#C5A05911] shadow-[0_0_12px_rgba(197,160,89,0.15)] font-semibold' 
-                        : 'border-[#333] hover:border-[#C5A059]'
+                        ? 'border-[#C5A059] bg-[#C5A05915] shadow-[0_0_12px_rgba(197,160,89,0.2)] font-semibold' 
+                        : 'border-[#222] bg-[#161616] hover:border-[#C5A059]'
                     }`}
                   >
                     {isSelected && (

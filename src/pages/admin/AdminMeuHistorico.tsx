@@ -1,12 +1,17 @@
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
-import { DollarSign, Scissors, Calendar as CalendarIcon, RefreshCw } from 'lucide-react';
+import { DollarSign, Scissors, Calendar as CalendarIcon, RefreshCw, Pencil, Trash2, X, Check } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import TransactionHistoryList from '../../components/TransactionHistoryList';
+import { confirmUI } from '../../utils/confirmUI';
+import toast from 'react-hot-toast';
 
 export default function AdminMeuHistorico() {
-  const { state, refreshData } = useAppContext();
+  const { state, refreshData, updateTransaction, deleteTransaction } = useAppContext();
+  const [selectedCorte, setSelectedCorte] = useState<any | null>(null);
+  const [editAmount, setEditAmount] = useState<number>(0);
+  const [isSubmittingModal, setIsSubmittingModal] = useState<boolean>(false);
 
   useEffect(() => {
     refreshData();
@@ -100,6 +105,53 @@ export default function AdminMeuHistorico() {
 
   const totalComissoes = agendamentos.reduce((acc, curr) => acc + curr.valorComissao, 0);
   const totalCortes = agendamentos.length;
+
+  const handleCorteClick = (appt: any) => {
+    if (!appt.incomeTx) {
+      toast.error('Este corte não possui transação financeira registrada para edição direta.');
+      return;
+    }
+    setSelectedCorte(appt);
+    setEditAmount(appt.valorServico);
+  };
+
+  const handleSaveModal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCorte || !selectedCorte.incomeTx) return;
+    if (editAmount < 0) return;
+
+    setIsSubmittingModal(true);
+    try {
+      await updateTransaction(selectedCorte.incomeTx.id, {
+        amount: editAmount
+      });
+      setSelectedCorte(null);
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Erro ao atualizar corte.');
+    } finally {
+      setIsSubmittingModal(false);
+    }
+  };
+
+  const handleDeleteModal = async () => {
+    if (!selectedCorte || !selectedCorte.incomeTx) return;
+    confirmUI(
+      `Tem certeza que deseja EXCLUIR permanentemente o corte e os lançamentos correspondentes (recebimento e comissão)? Esta ação é irreversível.`,
+      async () => {
+        setIsSubmittingModal(true);
+        try {
+          await deleteTransaction(selectedCorte.incomeTx.id);
+          setSelectedCorte(null);
+        } catch (err: any) {
+          console.error(err);
+          toast.error('Erro ao excluir corte.');
+        } finally {
+          setIsSubmittingModal(false);
+        }
+      }
+    );
+  };
   
   return (
     <div className="space-y-6">
@@ -148,44 +200,92 @@ export default function AdminMeuHistorico() {
       </div>
 
       <div className="bg-[#121212] rounded-2xl border border-[#222] overflow-hidden">
-        <h2 className="text-lg font-bold text-white p-6 border-b border-[#222]">Histórico de Serviços Concluídos</h2>
+        <div className="p-6 border-b border-[#222] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-[#161616]">
+          <h2 className="text-lg font-bold text-white">Histórico de Serviços Concluídos</h2>
+          <span className="text-[10px] text-[#777] uppercase tracking-widest font-extrabold">
+            💡 Dica: Toque/clique em qualquer corte para corrigir ou excluir
+          </span>
+        </div>
         
         {agendamentos.length === 0 ? (
           <div className="p-8 text-center text-[#777]">
             Nenhum serviço concluído até o momento.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-[#1A1A1A]">
-                  <th className="p-4 text-xs font-medium text-[#777] uppercase tracking-wider">Data</th>
-                  <th className="p-4 text-xs font-medium text-[#777] uppercase tracking-wider">Cliente</th>
-                  <th className="p-4 text-xs font-medium text-[#777] uppercase tracking-wider">Serviço</th>
-                  <th className="p-4 text-xs font-medium text-[#777] uppercase tracking-wider">Valor do Serviço</th>
-                  <th className="p-4 text-xs font-medium text-emerald-500 uppercase tracking-wider w-32 border-l border-[#222]">Sua Comissão</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#222]">
-                {agendamentos.map((appt) => (
-                  <tr key={appt.id} className="hover:bg-[#1A1A1A] transition-colors">
-                    <td className="p-4 text-sm text-[#CCC]">
-                      <div className="flex items-center gap-2">
-                        <CalendarIcon size={14} className="text-[#555]" />
-                        {format(parseISO(appt.date), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                      </div>
-                    </td>
-                    <td className="p-4 text-sm text-white font-medium">{appt.clientName}</td>
-                    <td className="p-4 text-sm text-[#CCC]">{appt.serviceName}</td>
-                    <td className="p-4 text-sm text-[#CCC]">R$ {appt.valorServico.toFixed(2)}</td>
-                    <td className="p-4 text-sm text-emerald-500 font-bold border-l border-[#222]">
-                      + R$ {appt.valorComissao.toFixed(2)}
-                    </td>
+          <>
+            {/* Desktop View (Table format) */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-[#1A1A1A]">
+                    <th className="p-4 text-xs font-medium text-[#777] uppercase tracking-wider">Data</th>
+                    <th className="p-4 text-xs font-medium text-[#777] uppercase tracking-wider">Cliente</th>
+                    <th className="p-4 text-xs font-medium text-[#777] uppercase tracking-wider">Serviço</th>
+                    <th className="p-4 text-xs font-medium text-[#777] uppercase tracking-wider">Valor do Serviço</th>
+                    <th className="p-4 text-xs font-medium text-emerald-500 uppercase tracking-wider w-32 border-l border-[#222]">Sua Comissão</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-[#222]">
+                  {agendamentos.map((appt) => (
+                    <tr 
+                      key={appt.id} 
+                      onClick={() => handleCorteClick(appt)}
+                      className="hover:bg-[#1C1C1C] transition-colors cursor-pointer"
+                      title="Clique para corrigir valor ou excluir"
+                    >
+                      <td className="p-4 text-sm text-[#CCC]">
+                        <div className="flex items-center gap-2">
+                          <CalendarIcon size={14} className="text-[#555]" />
+                          {format(parseISO(appt.date), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                        </div>
+                      </td>
+                      <td className="p-4 text-sm text-white font-medium">{appt.clientName}</td>
+                      <td className="p-4 text-sm text-[#CCC]">{appt.serviceName}</td>
+                      <td className="p-4 text-sm text-[#CCC]">R$ {appt.valorServico.toFixed(2)}</td>
+                      <td className="p-4 text-sm text-emerald-500 font-bold border-l border-[#222]">
+                        + R$ {appt.valorComissao.toFixed(2)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile View (Touch friendly card layout) */}
+            <div className="md:hidden divide-y divide-[#222] p-4 space-y-3">
+              {agendamentos.map((appt) => (
+                <div 
+                  key={appt.id} 
+                  onClick={() => handleCorteClick(appt)}
+                  className="bg-[#161616] border border-[#222] p-4 rounded-xl space-y-2 hover:border-[#C5A059] active:scale-[0.98] transition-all cursor-pointer"
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="max-w-[60%]">
+                      <p className="text-sm font-bold text-white uppercase truncate">{appt.clientName}</p>
+                      <p className="text-xs text-[#999] truncate">{appt.serviceName}</p>
+                    </div>
+                    <span className="text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded font-extrabold uppercase">
+                      + R$ {appt.valorComissao.toFixed(2)}
+                    </span>
+                  </div>
+                  
+                  <div className="flex justify-between items-center text-xs text-[#777] pt-1">
+                    <div className="flex items-center gap-1">
+                      <CalendarIcon size={12} className="text-[#555]" />
+                      <span>{format(parseISO(appt.date), "dd/MM/yyyy HH:mm", { locale: ptBR })}</span>
+                    </div>
+                    <span className="font-semibold text-[#CCC]">
+                      Valor: R$ {appt.valorServico.toFixed(2)}
+                    </span>
+                  </div>
+                  
+                  <div className="text-[10px] text-[#C5A059] flex items-center justify-end gap-1 pt-1.5 border-t border-[#222] font-semibold uppercase tracking-wider">
+                    <Pencil size={10} /> Toque para ajustar / excluir
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
 
@@ -194,6 +294,80 @@ export default function AdminMeuHistorico() {
         <p className="text-xs text-[#777] mb-6">Aqui você pode visualizar seus recebimentos e corrigir valores ou excluir lançamentos se registrados com alguma divergência ou por engano.</p>
         <TransactionHistoryList barberName={barbeiro?.name} showFilters={true} />
       </div>
+
+      {/* Touch-optimized Corte Adjustment Modal */}
+      {selectedCorte && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[#121212] border border-[#222] rounded-2xl w-full max-w-sm p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-[#222] pb-4 mb-4">
+              <h3 className="text-sm font-bold text-white uppercase tracking-widest flex items-center gap-2">
+                <Pencil size={14} className="text-[#C5A059]" /> Ajustar Corte Realizado
+              </h3>
+              <button 
+                onClick={() => setSelectedCorte(null)}
+                className="text-[#555] hover:text-white transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="mb-4 bg-[#161616] p-3 rounded-xl border border-[#222] space-y-1">
+              <p className="text-[10px] uppercase font-bold text-[#555] tracking-widest">Resumo do Serviço</p>
+              <p className="text-xs text-white"><span className="font-semibold">Cliente:</span> {selectedCorte.clientName}</p>
+              <p className="text-xs text-white"><span className="font-semibold">Serviço:</span> {selectedCorte.serviceName}</p>
+              <p className="text-xs text-white">
+                <span className="font-semibold">Data:</span> {format(parseISO(selectedCorte.date), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+              </p>
+            </div>
+
+            <form onSubmit={handleSaveModal} className="space-y-4">
+              <div>
+                <label className="block text-[10px] uppercase tracking-wider text-[#777] font-bold mb-1.5">Preço Total do Serviço (R$)</label>
+                <input
+                  type="number"
+                  required
+                  min="0"
+                  step="0.01"
+                  value={editAmount}
+                  onChange={e => setEditAmount(Number(e.target.value) || 0)}
+                  className="w-full px-4 py-2.5 bg-[#1A1A1A] border border-[#333] text-white rounded-xl focus:border-[#C5A059] focus:outline-none text-xs font-bold transition-all"
+                  placeholder="Por exemplo: 40.00"
+                />
+                <p className="text-[10px] text-[#777] mt-1.5">
+                  Sua comissão resultante ({comissaoPercent}%): <span className="text-[#C5A059] font-bold">R$ {((editAmount * comissaoPercent) / 100).toFixed(2)}</span>
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-2 pt-4 border-t border-[#222] mt-6">
+                <button
+                  type="submit"
+                  disabled={isSubmittingModal}
+                  className="w-full py-3 bg-[#C5A059] text-[#0A0A0A] font-black rounded-xl text-xs uppercase tracking-widest hover:bg-[#A88443] transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-[0_0_15px_rgba(197,160,89,0.2)]"
+                >
+                  <Check size={14} /> {isSubmittingModal ? 'Processando...' : 'Salvar Alteração'}
+                </button>
+                
+                <button
+                  type="button"
+                  disabled={isSubmittingModal}
+                  onClick={handleDeleteModal}
+                  className="w-full py-3 bg-red-600/10 hover:bg-red-600/20 border border-red-600/30 text-red-400 hover:text-red-300 font-bold rounded-xl text-xs uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <Trash2 size={14} /> Excluir Corte Permanentemente
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedCorte(null)}
+                  className="w-full py-2.5 border border-[#333] text-[#777] hover:text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer mt-1"
+                >
+                  Voltar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
