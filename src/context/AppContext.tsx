@@ -24,6 +24,7 @@ export interface AppContextType {
   editBarber: (id: string, updates: Partial<Barber>) => Promise<void>;
   deleteBarber: (id: string) => Promise<void>;
   refreshData: () => Promise<void>;
+  clearTestData: () => Promise<void>;
 }
 
 const DEFAULT_SERVICES: Service[] = [
@@ -738,6 +739,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch(e) { console.error(e); }
   };
 
+  const clearTestData = async () => {
+    if (!barbearia) return;
+    try {
+      const { error: apptError } = await supabase
+        .from('agendamentos')
+        .delete()
+        .eq('barbearia_id', barbearia.id);
+        
+      const { error: txError } = await supabase
+        .from('transacoes')
+        .delete()
+        .eq('barbearia_id', barbearia.id);
+
+      if (apptError) throw apptError;
+      if (txError) throw txError;
+
+      setState(prev => ({
+        ...prev,
+        appointments: [],
+        transactions: []
+      }));
+      toast.success('Todos os agendamentos e recebimentos de teste foram zerados com sucesso!');
+    } catch (e: any) {
+      console.error(e);
+      toast.error('Erro ao zerar dados: ' + (e.message || e));
+    }
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -760,6 +789,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         editBarber,
         deleteBarber,
         refreshData,
+        clearTestData,
       }}
     >
       {children}

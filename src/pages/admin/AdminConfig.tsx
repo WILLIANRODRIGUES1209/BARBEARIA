@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
-import { Plus, Edit2, Save, X, Settings } from 'lucide-react';
+import { Plus, Edit2, Save, X, Settings, Trash2 } from 'lucide-react';
 import { Service } from '../../types';
 
 import { confirmUI } from '../../utils/confirmUI';
 
 export default function AdminConfig() {
-  const { state, addService, editService, deleteService } = useAppContext();
+  const { state, addService, editService, deleteService, clearTestData } = useAppContext();
   
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -181,6 +181,29 @@ export default function AdminConfig() {
             Nenhum serviço cadastrado.
           </div>
         )}
+      </div>
+
+      {/* Zona de Perigo / Limpeza de Dados */}
+      <div className="bg-[#121212] rounded-2xl border border-red-900/40 p-6 mt-12">
+        <h2 className="text-sm font-bold text-red-500 uppercase tracking-widest mb-2 flex items-center gap-2">
+          <Trash2 size={16} /> Zona de Perigo
+        </h2>
+        <p className="text-xs text-[#777] mb-6 max-w-2xl">
+          Se você utilizou o sistema para fazer testes e agora deseja começar a utilizá-lo de forma definitiva, você pode zerar todas as informações de agendamentos e transações de recebimentos com um único clique.
+        </p>
+        
+        <div className="flex flex-col sm:flex-row gap-4">
+          <button
+            onClick={() => {
+              confirmUI('ATENÇÃO: Isso excluirá permanentemente todos os agendamentos e o histórico de recebimentos desta barbearia. Esta ação não pode ser desfeita. Deseja continuar?', async () => {
+                await clearTestData();
+              });
+            }}
+            className="px-5 py-3 rounded-xl border border-red-500/30 bg-red-500/10 text-red-400 font-bold text-xs uppercase tracking-widest hover:bg-red-500/20 active:bg-red-500/30 transition-all flex items-center justify-center gap-2 w-full sm:w-auto cursor-pointer"
+          >
+            <Trash2 size={16} /> Zerar Agendamentos e Recebimentos de Teste
+          </button>
+        </div>
       </div>
     </div>
   );
