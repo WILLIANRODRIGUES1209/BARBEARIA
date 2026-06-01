@@ -12,6 +12,8 @@ export interface AppContextType {
   addProduct: (product: Omit<Product, 'id'>) => void;
   updateProduct: (id: string, updates: Partial<Product>) => void;
   addTransaction: (transaction: Omit<Transaction, 'id'>) => void;
+  updateTransaction: (id: string, updates: Partial<Transaction>) => Promise<void>;
+  deleteTransaction: (id: string) => Promise<void>;
   updateServices: (services: Service[]) => void;
   addService: (service: Omit<Service, 'id'>) => Promise<void>;
   editService: (id: string, updates: Partial<Service>) => Promise<void>;
@@ -186,15 +188,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (payload.eventType === 'INSERT') {
              setState(prev => {
                 // Prevent duplicate additions if optimistic update already added it temporarily
-                const exists = prev.appointments.some(a => a.id === payload.new.id || 
-                    (a.clientName === payload.new.cliente_nome && a.date === payload.new.data_hora && a.serviceId === payload.new.servico_id && (a.id as string).startsWith('temp-')));
-                if (exists) {
-                   return {
-                      ...prev,
-                      appointments: prev.appointments.map(a => 
-                         (a.clientName === payload.new.cliente_nome && a.date === payload.new.data_hora && a.serviceId === payload.new.servico_id && (a.id as string).startsWith('temp-')) 
-                         ? mapAppointment(payload.new) : a)
-                   };
+                if (prev.appointments.some(a => a.id === payload.new.id)) {
+                   return prev;
+                }
+                
+                const tempIndex = prev.appointments.findIndex(a => 
+                   a.clientName === payload.new.cliente_nome && 
+                   a.date === payload.new.data_hora && 
+                   a.serviceId === payload.new.servico_id && 
+                   typeof a.id === 'string' && 
+                   a.id.startsWith('temp-')
+                );
+
+                if (tempIndex !== -1) {
+                   const newList = [...prev.appointments];
+                   newList[tempIndex] = mapAppointment(payload.new);
+                   return { ...prev, appointments: newList };
                 }
                 return { ...prev, appointments: [...prev.appointments, mapAppointment(payload.new)] };
              });
@@ -231,8 +240,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       .on('postgres_changes', { event: '*', schema: 'public', table: 'produtos', filter: `barbearia_id=eq.${barbearia.id}` }, (payload: any) => {
          if (payload.eventType === 'INSERT') {
             setState(prev => {
-               if (prev.products.some(p => p.id === payload.new.id || (p.name === payload.new.nome && typeof p.id === 'string' && p.id.startsWith('temp-')))) {
-                  return { ...prev, products: prev.products.map(p => (p.name === payload.new.nome && typeof p.id === 'string' && p.id.startsWith('temp-')) ? mapProduct(payload.new) : p) };
+               if (prev.products.some(p => p.id === payload.new.id)) {
+                  return prev;
+               }
+               const tempIndex = prev.products.findIndex(p => 
+                  p.name === payload.new.nome && 
+                  typeof p.id === 'string' && 
+                  p.id.startsWith('temp-')
+               );
+               if (tempIndex !== -1) {
+                  const newList = [...prev.products];
+                  newList[tempIndex] = mapProduct(payload.new);
+                  return { ...prev, products: newList };
                }
                return { ...prev, products: [...prev.products, mapProduct(payload.new)] };
             });
@@ -248,8 +267,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       .on('postgres_changes', { event: '*', schema: 'public', table: 'transacoes', filter: `barbearia_id=eq.${barbearia.id}` }, (payload: any) => {
          if (payload.eventType === 'INSERT') {
             setState(prev => {
-               if (prev.transactions.some(t => t.id === payload.new.id || (t.description === payload.new.descricao && typeof t.id === 'string' && t.id.startsWith('temp-')))) {
-                  return { ...prev, transactions: prev.transactions.map(t => (t.description === payload.new.descricao && typeof t.id === 'string' && t.id.startsWith('temp-')) ? mapTransaction(payload.new) : t) };
+               if (prev.transactions.some(t => t.id === payload.new.id)) {
+                  return prev;
+               }
+               const tempIndex = prev.transactions.findIndex(t => 
+                  t.description === payload.new.descricao && 
+                  t.amount === Number(payload.new.valor) &&
+                  typeof t.id === 'string' && 
+                  t.id.startsWith('temp-')
+               );
+               if (tempIndex !== -1) {
+                  const newList = [...prev.transactions];
+                  newList[tempIndex] = mapTransaction(payload.new);
+                  return { ...prev, transactions: newList };
                }
                return { ...prev, transactions: [...prev.transactions, mapTransaction(payload.new)] };
             });
@@ -265,8 +295,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       .on('postgres_changes', { event: '*', schema: 'public', table: 'servicos', filter: `barbearia_id=eq.${barbearia.id}` }, (payload: any) => {
          if (payload.eventType === 'INSERT') {
             setState(prev => {
-               if (prev.services.some(s => s.id === payload.new.id || (s.name === payload.new.nome && typeof s.id === 'string' && s.id.startsWith('temp-')))) {
-                  return { ...prev, services: prev.services.map(s => (s.name === payload.new.nome && typeof s.id === 'string' && s.id.startsWith('temp-')) ? mapService(payload.new) : s) };
+               if (prev.services.some(s => s.id === payload.new.id)) {
+                  return prev;
+               }
+               const tempIndex = prev.services.findIndex(s => 
+                  s.name === payload.new.nome && 
+                  typeof s.id === 'string' && 
+                  s.id.startsWith('temp-')
+               );
+               if (tempIndex !== -1) {
+                  const newList = [...prev.services];
+                  newList[tempIndex] = mapService(payload.new);
+                  return { ...prev, services: newList };
                }
                return { ...prev, services: [...prev.services, mapService(payload.new)] };
             });
@@ -282,8 +322,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       .on('postgres_changes', { event: '*', schema: 'public', table: 'barbeiros', filter: `barbearia_id=eq.${barbearia.id}` }, (payload: any) => {
          if (payload.eventType === 'INSERT') {
             setState(prev => {
-               if (prev.barbers.some(b => b.id === payload.new.id || (b.name === payload.new.nome && typeof b.id === 'string' && b.id.startsWith('temp-')))) {
-                  return { ...prev, barbers: prev.barbers.map(b => (b.name === payload.new.nome && typeof b.id === 'string' && b.id.startsWith('temp-')) ? mapBarber(payload.new) : b) };
+               if (prev.barbers.some(b => b.id === payload.new.id)) {
+                  return prev;
+               }
+               const tempIndex = prev.barbers.findIndex(b => 
+                  b.name === payload.new.nome && 
+                  typeof b.id === 'string' && 
+                  b.id.startsWith('temp-')
+               );
+               if (tempIndex !== -1) {
+                  const newList = [...prev.barbers];
+                  newList[tempIndex] = mapBarber(payload.new);
+                  return { ...prev, barbers: newList };
                }
                return { ...prev, barbers: [...prev.barbers, mapBarber(payload.new)] };
             });
@@ -299,8 +349,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       .on('postgres_changes', { event: '*', schema: 'public', table: 'clientes', filter: `barbearia_id=eq.${barbearia.id}` }, (payload: any) => {
          if (payload.eventType === 'INSERT') {
             setState(prev => {
-               if (prev.clients.some(c => c.id === payload.new.id || (c.name === payload.new.nome && typeof c.id === 'string' && c.id.startsWith('temp-')))) {
-                  return { ...prev, clients: prev.clients.map(c => (c.name === payload.new.nome && typeof c.id === 'string' && c.id.startsWith('temp-')) ? mapClient(payload.new) : c) };
+               if (prev.clients.some(c => c.id === payload.new.id)) {
+                  return prev;
+               }
+               const tempIndex = prev.clients.findIndex(c => 
+                  c.name === payload.new.nome && 
+                  typeof c.id === 'string' && 
+                  c.id.startsWith('temp-')
+               );
+               if (tempIndex !== -1) {
+                  const newList = [...prev.clients];
+                  newList[tempIndex] = mapClient(payload.new);
+                  return { ...prev, clients: newList };
                }
                return { ...prev, clients: [...prev.clients, mapClient(payload.new)] };
             });
@@ -452,7 +512,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         id: `temp-${Date.now()}`,
         type: 'INCOME' as const,
         amount,
-        description: `Serviço recebido via ${paymentMethod}: ${description}`,
+        description: `Serviço recebido via ${paymentMethod}: ${description} (Ref: ${id})`,
         date: new Date().toISOString()
       }];
       if (commissionTransaction) {
@@ -473,7 +533,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         barbearia_id: barbearia.id,
         tipo: 'ENTRADA',
         valor: amount,
-        descricao: `Serviço recebido via ${paymentMethod}: ${description}`,
+        descricao: `Serviço recebido via ${paymentMethod}: ${description} (Ref: ${id})`,
         data: new Date().toISOString(),
       }];
       if (commissionEntity) {
@@ -587,8 +647,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const addTransaction = async (t: Omit<Transaction, 'id'>) => {
     if (!barbearia) return;
 
-    // Optimistic update
-    const tempId = `temp-${Date.now()}`;
+    // Optimistic update - collision-proof unique tempId
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     setState(prev => ({
       ...prev,
       transactions: [...prev.transactions, { ...t, id: tempId, date: t.date || new Date().toISOString() }]
@@ -612,6 +672,187 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.error(err);
       toast.error(`Falha ao registrar transação: ${err?.message || 'Permissão negada ou erro de rede.'}`);
       setState(prev => ({ ...prev, transactions: prev.transactions.filter(tr => tr.id !== tempId) }));
+    }
+  };
+
+  const updateTransaction = async (id: string, updates: Partial<Transaction>) => {
+    if (!barbearia) return;
+
+    // Check if we are updating an INCOME amount, to conjunctively update the EXPENSE/commission
+    const target = state.transactions.find(t => t.id === id);
+    const updatesList: { id: string; updates: Partial<Transaction> }[] = [{ id, updates }];
+
+    if (target && target.type === 'INCOME' && updates.amount !== undefined && target.amount > 0) {
+      // Find matching commission transaction to update as well
+      const targetTime = new Date(target.date).getTime();
+      const matchingCommission = state.transactions.find(other => {
+        if (other.type !== 'EXPENSE') return false;
+        
+        // Is it a commission?
+        const isCommission = other.description.toLowerCase().includes('comissão') || other.description.toLowerCase().includes('comissao');
+        if (!isCommission) return false;
+
+        // Proximity in time: within 10 seconds
+        const otherTime = new Date(other.date).getTime();
+        const timeDiff = Math.abs(targetTime - otherTime);
+        if (timeDiff > 10000) return false;
+
+        return true;
+      });
+
+      if (matchingCommission) {
+        const ratio = matchingCommission.amount / target.amount;
+        const newCommissionAmount = updates.amount * ratio;
+        updatesList.push({
+          id: matchingCommission.id,
+          updates: { amount: newCommissionAmount }
+        });
+      }
+    }
+    
+    setState(prev => ({
+      ...prev,
+      transactions: prev.transactions.map(t => {
+        const up = updatesList.find(x => x.id === t.id);
+        return up ? { ...t, ...up.updates } : t;
+      })
+    }));
+
+    try {
+      for (const item of updatesList) {
+        const mappedUpdates: any = {};
+        if (item.updates.amount !== undefined) mappedUpdates.valor = item.updates.amount;
+        if (item.updates.description !== undefined) mappedUpdates.descricao = item.updates.description;
+        if (item.updates.type !== undefined) mappedUpdates.tipo = item.updates.type === 'INCOME' ? 'ENTRADA' : 'SAIDA';
+        if (item.updates.date !== undefined) mappedUpdates.data = item.updates.date;
+
+        const { error } = await supabase
+          .from('transacoes')
+          .update(mappedUpdates)
+          .eq('id', item.id);
+
+        if (error) throw error;
+      }
+      toast.success('Transação atualizada com sucesso!');
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Erro ao atualizar transação.');
+      await refreshData();
+    }
+  };
+
+  const deleteTransaction = async (id: string) => {
+    if (!barbearia) return;
+
+    const target = state.transactions.find(t => t.id === id);
+    const idsToDelete = [id];
+
+    if (target && target.type === 'INCOME') {
+      // Find matching commission transaction to delete as well
+      const targetTime = new Date(target.date).getTime();
+      const matchingCommission = state.transactions.find(other => {
+        if (other.type !== 'EXPENSE') return false;
+        
+        // Is it a commission?
+        const isCommission = other.description.toLowerCase().includes('comissão') || other.description.toLowerCase().includes('comissao');
+        if (!isCommission) return false;
+
+        // Proximity in time: within 10 seconds
+        const otherTime = new Date(other.date).getTime();
+        const timeDiff = Math.abs(targetTime - otherTime);
+        if (timeDiff > 10000) return false;
+
+        return true;
+      });
+
+      if (matchingCommission) {
+        idsToDelete.push(matchingCommission.id);
+      }
+    }
+
+    // Identify linked appointments to process
+    let appointmentIdToRevert: string | null = null;
+    let appointmentsToDelete: string[] = [];
+
+    if (target && target.type === 'INCOME') {
+      // 1. Check for single appointment referenced from Agenda
+      const refMatch = target.description.match(/\(Ref:\s*([^\)]+)\)/i);
+      if (refMatch && refMatch[1]) {
+        appointmentIdToRevert = refMatch[1];
+      }
+
+      // 2. Check for PDV sale
+      if (target.description.includes('Venda PDV')) {
+        const targetTime = new Date(target.date).getTime();
+        const matchingAppts = state.appointments.filter(appt => {
+          if (appt.status !== 'COMPLETED') return false;
+          const apptTime = new Date(appt.date).getTime();
+          return Math.abs(apptTime - targetTime) <= 5000;
+        });
+        appointmentsToDelete = matchingAppts.map(appt => appt.id);
+      }
+    }
+
+    setState(prev => {
+      let updatedAppointments = prev.appointments;
+      if (appointmentIdToRevert) {
+        updatedAppointments = updatedAppointments.map(a => 
+          a.id === appointmentIdToRevert ? { ...a, status: 'PENDING' as const } : a
+        );
+      }
+      if (appointmentsToDelete.length > 0) {
+        updatedAppointments = updatedAppointments.filter(a => !appointmentsToDelete.includes(a.id));
+      }
+
+      return {
+        ...prev,
+        transactions: prev.transactions.filter(t => !idsToDelete.includes(t.id)),
+        appointments: updatedAppointments
+      };
+    });
+
+    try {
+      const { error } = await supabase
+        .from('transacoes')
+        .delete()
+        .in('id', idsToDelete);
+
+      if (error) {
+        toast.error(`Falha ao excluir transação: ${error.message}`);
+        await refreshData();
+      } else {
+        // Revert schedule status in DB if relevant
+        if (appointmentIdToRevert && !appointmentIdToRevert.startsWith('temp-')) {
+          const { error: apptError } = await supabase
+            .from('agendamentos')
+            .update({ status: 'PENDENTE' })
+            .eq('id', appointmentIdToRevert);
+          if (apptError) {
+            console.error('Erro ao reverter agendamento:', apptError);
+          }
+        }
+
+        // Delete PDV-created appointments from DB if relevant
+        const dbApptsToDelete = appointmentsToDelete.filter(id => !id.startsWith('temp-'));
+        if (dbApptsToDelete.length > 0) {
+          const { error: apptsDelError } = await supabase
+            .from('agendamentos')
+            .delete()
+            .in('id', dbApptsToDelete);
+          if (apptsDelError) {
+            console.error('Erro ao excluir histórico do PDV:', apptsDelError);
+          }
+        }
+
+        toast.success(idsToDelete.length > 1 
+          ? 'Transação, comissões e histórico de cortes correspondentes excluídos/estornados com sucesso!' 
+          : 'Transação excluída e estornada com sucesso!'
+        );
+      }
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Erro ao excluir transação.');
+      await refreshData();
     }
   };
 
@@ -777,6 +1018,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addProduct,
         updateProduct,
         addTransaction,
+        updateTransaction,
+        deleteTransaction,
         updateServices,
         addService,
         editService,

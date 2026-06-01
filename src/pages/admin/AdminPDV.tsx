@@ -17,6 +17,7 @@ export default function AdminPDV() {
   const [cartItems, setCartItems] = useState<{ id: string, type: 'PRODUCT' | 'SERVICE', name: string, price: number, quantity: number }[]>([]);
   const [paymentMethod, setPaymentMethod] = useState('PIX');
   const [discount, setDiscount] = useState(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const subtotal = cartItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
   const total = Math.max(0, subtotal - discount);
@@ -45,7 +46,7 @@ export default function AdminPDV() {
   };
 
   const handleCheckout = () => {
-    if (cartItems.length === 0) return;
+    if (cartItems.length === 0 || isSubmitting) return;
 
     // Guard: Prevent checkout of services without identifying the responsible professional
     const hasService = cartItems.some(i => i.type === 'SERVICE');
@@ -55,6 +56,8 @@ export default function AdminPDV() {
       });
       return;
     }
+
+    setIsSubmitting(true);
 
     // Remove from stock
     cartItems.forEach(item => {
@@ -66,6 +69,7 @@ export default function AdminPDV() {
       }
     });
 
+    const checkoutDateStr = new Date().toISOString();
     const clientName = state.clients.find(c => c.id === selectedClient)?.name || 'Cliente Avulso';
 
     // Record Transaction
@@ -73,7 +77,7 @@ export default function AdminPDV() {
       type: 'INCOME',
       amount: total,
       description: `Venda PDV - ${clientName} - ${cartItems.length} itens (${paymentMethod})`,
-      date: new Date().toISOString(),
+      date: checkoutDateStr,
     });
 
     // Commission logic for Services in PDV
@@ -87,7 +91,7 @@ export default function AdminPDV() {
           type: 'EXPENSE',
           amount: comissionValue,
           description: `Comissão Barbeiro (${barber.name}) - Venda PDV - ${barber.comissao}%`,
-          date: new Date().toISOString(),
+          date: checkoutDateStr,
         });
       }
 
@@ -101,7 +105,7 @@ export default function AdminPDV() {
               clientPhone,
               serviceId: item.id,
               barberId: selectedBarber,
-              date: new Date().toISOString()
+              date: checkoutDateStr
             }, 'COMPLETED');
           }
         }
@@ -113,6 +117,7 @@ export default function AdminPDV() {
     setSelectedClient('');
     if (!isBarbeiro) setSelectedBarber('');
     setDiscount(0);
+    setTimeout(() => setIsSubmitting(false), 800);
   };
 
   return (
@@ -293,14 +298,14 @@ export default function AdminPDV() {
 
             <button
               onClick={handleCheckout}
-              disabled={cartItems.length === 0}
+              disabled={cartItems.length === 0 || isSubmitting}
               className={`w-full py-4 text-[#0A0A0A] font-bold text-xs uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 ${
-                cartItems.length > 0 
+                cartItems.length > 0 && !isSubmitting
                   ? 'bg-[#00C853] shadow-[0_0_15px_#00C85344] hover:bg-[#00E676]' 
                   : 'bg-[#222] text-[#555] cursor-not-allowed'
               }`}
             >
-              <Check size={18} /> Finalizar Venda
+              <Check size={18} /> {isSubmitting ? 'Processando...' : 'Finalizar Venda'}
             </button>
           </div>
         </div>

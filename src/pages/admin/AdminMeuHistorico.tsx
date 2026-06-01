@@ -3,6 +3,7 @@ import { useAppContext } from '../../context/AppContext';
 import { DollarSign, Scissors, Calendar as CalendarIcon, RefreshCw } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import TransactionHistoryList from '../../components/TransactionHistoryList';
 
 export default function AdminMeuHistorico() {
   const { state, refreshData } = useAppContext();
@@ -128,6 +129,12 @@ export default function AdminMeuHistorico() {
             </table>
           </div>
         )}
+      </div>
+
+      <div className="bg-[#121212] rounded-2xl border border-[#222] p-6 mt-6">
+        <h2 className="text-lg font-bold text-white mb-2">Histórico & Correções de Caixas</h2>
+        <p className="text-xs text-[#777] mb-6">Aqui você pode visualizar seus recebimentos e corrigir valores ou excluir lançamentos se registrados com alguma divergência ou por engano.</p>
+        <TransactionHistoryList barberName={barbeiro?.name} showFilters={true} />
       </div>
     </div>
   );

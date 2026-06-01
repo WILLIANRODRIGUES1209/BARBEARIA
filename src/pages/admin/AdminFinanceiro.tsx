@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { Plus, TrendingUp, TrendingDown, DollarSign, X, Calendar as CalendarIcon } from 'lucide-react';
 import { format, parseISO, startOfMonth, endOfMonth, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
+import TransactionHistoryList from '../../components/TransactionHistoryList';
 
 export default function AdminFinanceiro() {
   const { state, addTransaction } = useAppContext();
@@ -262,43 +263,10 @@ export default function AdminFinanceiro() {
              </div>
           )}
         </div>
-        <h2 className="text-lg font-medium text-white p-6 border-b border-[#222]">Histórico de Transações</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-[#0C0C0C] border-b border-[#222]">
-                <th className="p-4 text-xs tracking-wider uppercase text-[#555] font-semibold">Data</th>
-                <th className="p-4 text-xs tracking-wider uppercase text-[#555] font-semibold">Descrição</th>
-                <th className="p-4 text-xs tracking-wider uppercase text-[#555] font-semibold">Tipo</th>
-                <th className="p-4 text-xs tracking-wider uppercase text-[#555] font-semibold text-right">Valor</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#222]">
-              {sortedTransactions.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="p-8 text-center text-[#777]">Nenhuma transação registrada.</td>
-                </tr>
-              ) : (
-                sortedTransactions.map(t => (
-                  <tr key={t.id} className="hover:bg-[#161616] transition-colors">
-                    <td className="p-4 text-sm font-mono text-[#888]">{format(parseISO(t.date), 'dd/MM/yyyy HH:mm')}</td>
-                    <td className="p-4 font-medium text-white">{t.description}</td>
-                    <td className="p-4">
-                      <span className={`inline-flex items-center px-2 py-1 rounded text-[10px] uppercase tracking-wider font-bold ${
-                        t.type === 'INCOME' ? 'bg-[#00C85322] text-[#00C853]' : 'bg-[#FF3D0022] text-[#FF3D00]'
-                      }`}>
-                        {t.type === 'INCOME' ? 'Entrada' : 'Saída'}
-                      </span>
-                    </td>
-                    <td className={`p-4 text-right font-medium ${t.type === 'INCOME' ? 'text-[#00C853]' : 'text-[#FF3D00]'}`}>
-                      {t.type === 'INCOME' ? '+' : '-'} R$ {t.amount.toFixed(2)}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+      <div className="space-y-4 pt-6">
+        <h2 className="text-lg font-medium text-white mb-2">Histórico de Transações</h2>
+        <TransactionHistoryList showFilters={true} />
+      </div>
       </div>
     </div>
   );
