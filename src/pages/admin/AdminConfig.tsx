@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { useBarbearia } from '../../context/BarbeariaContext';
-import { Plus, Edit2, Save, X, Settings, Trash2, Clock } from 'lucide-react';
+import { Plus, Edit2, Save, X, Settings, Trash2, Clock, Image } from 'lucide-react';
 import { Service } from '../../types';
 import toast from 'react-hot-toast';
 
@@ -21,6 +21,7 @@ export default function AdminConfig() {
   const [lunchEnd, setLunchEnd] = useState("13:00");
   const [workEnd, setWorkEnd] = useState("19:00");
   const [workStart, setWorkStart] = useState("08:00");
+  const [logoUrl, setLogoUrl] = useState("");
   const [isSavingConfig, setIsSavingConfig] = useState(false);
 
   React.useEffect(() => {
@@ -40,6 +41,7 @@ export default function AdminConfig() {
             setLunchStart(data.lunchStart || "12:00");
             setLunchEnd(data.lunchEnd || "13:00");
             setWorkEnd(data.workEnd || "19:00");
+            setLogoUrl(data.logoUrl || "");
           }
         })
         .catch(err => console.error("Error fetching config:", err));
@@ -60,7 +62,8 @@ export default function AdminConfig() {
           workStart,
           lunchStart,
           lunchEnd,
-          workEnd
+          workEnd,
+          logoUrl
         })
       });
       const text = await res.text();
@@ -73,9 +76,9 @@ export default function AdminConfig() {
       }
 
       if (res.ok && data.success) {
-        toast.success("Horários salvos com sucesso!");
+        toast.success("Configurações salvas com sucesso!");
       } else {
-        toast.error("Erro ao salvar horários: " + (data.error || "Erro desconhecido"));
+        toast.error("Erro ao salvar configurações: " + (data.error || "Erro desconhecido"));
       }
     } catch (err: any) {
       console.error(err);
@@ -318,6 +321,62 @@ export default function AdminConfig() {
             </button>
           </div>
         </form>
+      </div>
+
+      {/* Logotipo da Barbearia */}
+      <div className="bg-[#121212] rounded-2xl border border-[#222] p-6 mt-12 shadow-xl">
+        <h2 className="text-sm font-bold text-[#C5A059] uppercase tracking-widest mb-2 flex items-center gap-2">
+          <Image size={16} /> Identidade Visual / Logotipo
+        </h2>
+        <p className="text-xs text-[#777] mb-6 max-w-2xl">
+          Personalize a aparência das páginas de agendamento e painéis administrativos configurando um logotipo exclusivo para sua barbearia. Insira um link direto para uma imagem na internet (ex: do Imgur, Postimages ou de canais de hospedagem).
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-start">
+          <div className="md:col-span-3">
+            <label className="block text-[10px] uppercase tracking-wider text-[#777] mb-1.5 font-medium">URL do Logotipo (Imagem)</label>
+            <input 
+              type="url" 
+              value={logoUrl}
+              onChange={e => setLogoUrl(e.target.value)}
+              placeholder="https://exemplo.com/sua-logo.png"
+              className="w-full px-4 py-3 bg-[#1A1A1A] border border-[#333] text-white rounded-xl focus:border-[#C5A059] focus:outline-none text-sm transition-all placeholder-[#555]"
+            />
+            <p className="text-[10px] text-[#555] mt-2">
+              Para melhores resultados, utilize uma imagem quadrada (proporção 1:1) com fundo transparente ou escuro.
+            </p>
+          </div>
+
+          <div className="flex flex-col items-center justify-center p-4 bg-[#181818] border border-[#282828] rounded-2xl h-full min-h-[140px]">
+            <span className="text-[10px] uppercase tracking-wider text-[#555] mb-2 font-medium">Prévia</span>
+            {logoUrl ? (
+              <img 
+                src={logoUrl} 
+                alt="Logotipo Barbearia" 
+                className="w-16 h-16 object-contain rounded-xl"
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="%23ff3d00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
+                }}
+              />
+            ) : (
+              <div className="w-16 h-16 rounded-xl bg-[#121212] border border-[#222] flex items-center justify-center text-[#444]">
+                <Image size={24} />
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="flex justify-end mt-6">
+          <button 
+            type="button" 
+            onClick={handleSaveConfig}
+            disabled={isSavingConfig}
+            className="px-6 py-3 rounded-xl bg-[#C5A059] text-[#0A0A0A] font-bold text-xs uppercase tracking-widest hover:bg-[#8E6D31] active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+          >
+            {isSavingConfig ? "Salvando..." : "Salvar Logotipo"}
+          </button>
+        </div>
       </div>
 
       {/* Zerar dados / Limpeza de Dados */}

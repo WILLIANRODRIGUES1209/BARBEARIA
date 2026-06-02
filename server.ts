@@ -514,20 +514,22 @@ async function startServer() {
       lunchStart: "12:00",
       lunchEnd: "13:00",
       workEnd: "19:00",
-      workStart: "08:00"
+      workStart: "08:00",
+      logoUrl: ""
     };
     res.json(config);
   });
 
   app.post("/api/config", (req, res) => {
-    const { barbeariaId, lunchStart, lunchEnd, workEnd, workStart } = req.body;
+    const { barbeariaId, lunchStart, lunchEnd, workEnd, workStart, logoUrl } = req.body;
     const bid = barbeariaId || "default";
     const configs = loadConfigs();
     configs[bid] = {
       lunchStart: lunchStart || "12:00",
       lunchEnd: lunchEnd || "13:00",
       workEnd: workEnd || "19:00",
-      workStart: workStart || "08:00"
+      workStart: workStart || "08:00",
+      logoUrl: logoUrl || ""
     };
     saveConfigs(configs);
     res.status(200).json({ success: true, config: configs[bid] });

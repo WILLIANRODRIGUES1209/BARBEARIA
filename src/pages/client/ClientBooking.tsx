@@ -22,7 +22,8 @@ export default function ClientBooking() {
     workStart: "08:00",
     lunchStart: "12:00",
     lunchEnd: "13:00",
-    workEnd: "19:00"
+    workEnd: "19:00",
+    logoUrl: ""
   });
 
   useEffect(() => {
@@ -41,7 +42,8 @@ export default function ClientBooking() {
               workStart: data.workStart || "08:00",
               lunchStart: data.lunchStart || "12:00",
               lunchEnd: data.lunchEnd || "13:00",
-              workEnd: data.workEnd || "19:00"
+              workEnd: data.workEnd || "19:00",
+              logoUrl: data.logoUrl || ""
             });
           }
         })
@@ -214,11 +216,22 @@ export default function ClientBooking() {
     <div className="min-h-screen bg-[#0A0A0A] flex flex-col items-center py-6 sm:py-12 px-4 font-sans text-[#E0E0E0]">
       {/* Header */}
       <div className="text-center mb-6 sm:mb-8">
-        <div className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 bg-[#121212] border border-[#222] rounded-2xl mb-3 sm:mb-4 shadow-[0_0_15px_#C5A05933]">
-          <div className="w-6 h-6 sm:w-8 sm:h-8 bg-[#C5A059] rounded flex items-center justify-center">
-             <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-[#0A0A0A]"></div>
+        {config.logoUrl ? (
+          <div className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 bg-[#121212] border border-[#222] rounded-2xl mb-3 sm:mb-4 overflow-hidden shadow-[0_0_15px_#C5A05922]">
+            <img 
+              src={config.logoUrl} 
+              alt={barbearia?.nome || "Logo"} 
+              className="w-full h-full object-contain"
+              referrerPolicy="no-referrer"
+            />
           </div>
-        </div>
+        ) : (
+          <div className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 bg-[#121212] border border-[#222] rounded-2xl mb-3 sm:mb-4 shadow-[0_0_15px_#C5A05933]">
+            <div className="w-6 h-6 sm:w-8 sm:h-8 bg-[#C5A059] rounded flex items-center justify-center">
+               <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-[#0A0A0A]"></div>
+            </div>
+          </div>
+        )}
         <h1 className="text-2xl sm:text-3xl font-black text-[#C5A059] uppercase tracking-tight">{barbearia?.nome}</h1>
         <p className="text-[#777] text-sm sm:text-base font-medium tracking-wide">Agende seu horário com praticidade</p>
       </div>

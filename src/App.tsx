@@ -29,6 +29,20 @@ const AdminLayout = ({ children, onLogout, authState }: { children: React.ReactN
   const location = useLocation();
   const { state } = useAppContext();
   const { barbearia } = useBarbearia();
+  const [logoUrl, setLogoUrl] = useState("");
+
+  useEffect(() => {
+    if (barbearia?.id) {
+      fetch(`/api/config?barbeariaId=${barbearia.id}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.logoUrl) {
+            setLogoUrl(data.logoUrl);
+          }
+        })
+        .catch(err => console.error("Error loading logo in App layout:", err));
+    }
+  }, [barbearia?.id]);
 
   const allNavItems = [
     { name: 'Dashboard', path: '/admin', icon: LayoutDashboard, adminOnly: true },
@@ -53,9 +67,18 @@ const AdminLayout = ({ children, onLogout, authState }: { children: React.ReactN
       <aside className="w-64 bg-[#0F0F0F] border-r border-[#222] flex flex-col hidden sm:flex">
         <div className="p-8">
           <div className="text-xl font-bold tracking-tighter text-[#C5A059] flex items-center gap-2">
-            <div className="w-8 h-8 shrink-0 bg-[#C5A059] rounded flex items-center justify-center">
-              <div className="w-4 h-4 border-2 border-[#0A0A0A]"></div>
-            </div>
+            {logoUrl ? (
+              <img 
+                src={logoUrl} 
+                alt="Logo" 
+                className="w-8 h-8 rounded-lg object-contain bg-[#121212] border border-[#222]" 
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <div className="w-8 h-8 shrink-0 bg-[#C5A059] rounded flex items-center justify-center">
+                <div className="w-4 h-4 border-2 border-[#0A0A0A]"></div>
+              </div>
+            )}
             <span className="truncate">{barbearia?.nome || 'Carregando...'}</span>
           </div>
           <p className="text-[10px] uppercase tracking-[0.2em] text-[#555] mt-2">PROFISSIONALIZE SUA BARBEARIA</p>
@@ -138,9 +161,18 @@ const AdminLayout = ({ children, onLogout, authState }: { children: React.ReactN
         {/* Mobile Header */}
         <header className="sm:hidden bg-[#0C0C0C] border-b border-[#222] px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2 text-[#C5A059] text-base font-bold max-w-[80%]">
-             <div className="w-5 h-5 shrink-0 bg-[#C5A059] rounded flex items-center justify-center">
-                <div className="w-2.5 h-2.5 border-2 border-[#0A0A0A]"></div>
-             </div>
+             {logoUrl ? (
+               <img 
+                 src={logoUrl} 
+                 alt="Logo" 
+                 className="w-5 h-5 rounded object-contain bg-[#121212] border border-[#222]" 
+                 referrerPolicy="no-referrer"
+               />
+             ) : (
+               <div className="w-5 h-5 shrink-0 bg-[#C5A059] rounded flex items-center justify-center">
+                  <div className="w-2.5 h-2.5 border-2 border-[#0A0A0A]"></div>
+               </div>
+             )}
              <span className="truncate">{barbearia?.nome || 'Carregando...'}</span>
           </div>
           <button onClick={onLogout} className="p-2 text-[#FF3D00] hover:bg-[#FF3D0022] rounded-full transition-colors flex shrink-0">
