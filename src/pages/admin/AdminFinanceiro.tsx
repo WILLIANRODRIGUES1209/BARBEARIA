@@ -34,6 +34,43 @@ export default function AdminFinanceiro() {
     });
   }, [state.transactions, dateFilter, paymentMethodFilter]);
 
+  // Individualized Finance calculations per Barber respecting active Date Filter
+  const filteredAppointments = useMemo(() => {
+    const now = new Date();
+    return state.appointments.filter(a => {
+      if (a.status !== 'COMPLETED') return false;
+
+      // Date Filter
+      if (dateFilter !== 'ALL') {
+         const tDate = parseISO(a.date);
+         if (dateFilter === 'TODAY' && !isWithinInterval(tDate, { start: startOfDay(now), end: endOfDay(now) })) return false;
+         if (dateFilter === 'MONTH' && !isWithinInterval(tDate, { start: startOfMonth(now), end: endOfMonth(now) })) return false;
+      }
+      return true;
+    });
+  }, [state.appointments, dateFilter]);
+
+  const barberFinances = useMemo(() => {
+    return state.barbers.map(barber => {
+      const appts = filteredAppointments.filter(a => a.barberId === barber.id);
+      const totalAmount = appts.reduce((sum, a) => {
+        const service = state.services.find(s => s.id === a.serviceId);
+        return sum + (service ? service.price : 0);
+      }, 0);
+      const comPercent = barber.comissao || 0;
+      const commissionAmount = (totalAmount * comPercent) / 100;
+      const netAmount = totalAmount - commissionAmount;
+
+      return {
+        barber,
+        count: appts.length,
+        gross: totalAmount,
+        commission: commissionAmount,
+        net: netAmount
+      };
+    });
+  }, [state.barbers, filteredAppointments, state.services]);
+
   const totalIncome = filteredTransactions.filter(t => t.type === 'INCOME').reduce((acc, t) => acc + t.amount, 0);
   const totalExpense = filteredTransactions.filter(t => t.type === 'EXPENSE').reduce((acc, t) => acc + t.amount, 0);
   const balance = totalIncome - totalExpense;
@@ -220,6 +257,55 @@ export default function AdminFinanceiro() {
           </div>
         </form>
       )}
+
+      {/* SEÇÃO: FATURAMENTO INDIVIDUALIZADO POR BARBEIRO */}
+      <div className="bg-[#121212] p-6 rounded-2xl shadow-xl border border-[#222]">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="bg-[#C5A05922] text-[#C5A059] p-2 rounded">
+            <DollarSign size={20} />
+          </div>
+          <h2 className="text-lg font-medium text-white">Faturamento por Barbeiro</h2>
+        </div>
+        <p className="text-xs text-[#888] mb-6">
+          Acompanhe o desempenho de cada profissional de acordo com o intervalo selecionado (<span className="text-[#C5A059]">{dateFilter === 'TODAY' ? 'Hoje' : dateFilter === 'MONTH' ? 'Este Mês' : 'Todo o Período'}</span>).
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {barberFinances.map(({ barber, count, gross, commission, net }) => (
+            <div key={barber.id} className="bg-[#1A1A1A] border border-[#333] hover:border-[#C5A05944] rounded-xl p-5 transition-all">
+              <div className="flex justify-between items-start border-b border-[#222] pb-3 mb-4">
+                <div>
+                  <h4 className="font-semibold text-white uppercase tracking-wider text-sm">{barber.name}</h4>
+                  <p className="text-[10px] text-[#777] mt-0.5">Comissão: {barber.comissao || 0}%</p>
+                </div>
+                <span className="bg-[#C5A05922] text-[#C5A059] text-[10px] px-2.5 py-1 rounded-lg font-bold uppercase tracking-wider">
+                  {count} {count === 1 ? 'Atendimento' : 'Atendimentos'}
+                </span>
+              </div>
+              
+              <div className="space-y-2 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-[#888]">Faturamento Bruto:</span>
+                  <span className="text-white font-medium">R$ {gross.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#888]">Comissão {barber.comissao || 0}%:</span>
+                  <span className="text-[#FF3D00] font-medium">- R$ {commission.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between border-t border-[#222] pt-2 mt-2 font-medium">
+                  <span className="text-white">Líquido Barbearia:</span>
+                  <span className="text-[#00C853] font-bold">R$ {net.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+          {barberFinances.length === 0 && (
+            <div className="col-span-full py-8 text-center text-[#777] bg-[#1A1A1A] rounded-xl border border-[#222]">
+              Nenhum profissional cadastrado.
+            </div>
+          )}
+        </div>
+      </div>
 
       <div className="bg-[#121212] rounded-2xl shadow-xl border border-[#222] overflow-hidden">
         <div className="p-6 border-b border-[#222]">

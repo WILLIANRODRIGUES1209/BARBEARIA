@@ -24,7 +24,7 @@ import toast from 'react-hot-toast';
 const WEEKDAYS = ["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"];
 
 export default function AdminAgenda() {
-  const { state, updateAppointmentStatus, payAppointment, addAppointment } = useAppContext();
+  const { state, updateAppointmentStatus, payAppointment, addAppointment, addClient } = useAppContext();
   const { barbearia } = useBarbearia();
   
   const [config, setConfig] = useState({
@@ -87,6 +87,18 @@ export default function AdminAgenda() {
   const [customPrice, setCustomPrice] = useState<string>('');
   const [agendaSubTab, setAgendaSubTab] = useState<'hoje' | 'proximos'>('hoje');
 
+  // Manual booking states
+  const [manualBookingModalOpen, setManualBookingModalOpen] = useState(false);
+  const [mbClientType, setMbClientType] = useState<'REGISTERED' | 'NEW'>('NEW');
+  const [mbSelectedClientId, setMbSelectedClientId] = useState('');
+  const [mbName, setMbName] = useState('');
+  const [mbPhone, setMbPhone] = useState('');
+  const [mbBarberId, setMbBarberId] = useState('');
+  const [mbServiceId, setMbServiceId] = useState('');
+  const [mbDate, setMbDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [mbTime, setMbTime] = useState('09:00');
+  const [mbSaveToClients, setMbSaveToClients] = useState(true);
+
   // Form states for Block
   const [blockDate, setBlockDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [blockTime, setBlockTime] = useState('09:00');
@@ -114,8 +126,12 @@ export default function AdminAgenda() {
     if (barbers.length > 0) {
       if (!blockBarberId) setBlockBarberId(isBarbeiro ? (currentBarbeiroId || barbers[0].id) : barbers[0].id);
       if (!fixoBarberId) setFixoBarberId(isBarbeiro ? (currentBarbeiroId || barbers[0].id) : barbers[0].id);
+      if (!mbBarberId) setMbBarberId(isBarbeiro ? (currentBarbeiroId || barbers[0].id) : barbers[0].id);
     }
-  }, [state.barbers, isBarbeiro, currentBarbeiroId]);
+    if (state.services.length > 0 && !mbServiceId) {
+      setMbServiceId(state.services[0].id);
+    }
+  }, [state.barbers, state.services, isBarbeiro, currentBarbeiroId]);
 
   // Filters to exclude blocks and fixed client metadata rows from standard daily lists
   const filteredAppointments = [...state.appointments]
@@ -171,6 +187,69 @@ export default function AdminAgenda() {
   const handleCancelAppointment = (id: string) => {
     updateAppointmentStatus(id, 'CANCELLED');
     setDetailsModalOpen(false);
+  };
+
+  const handleConfirmManualBooking = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    let finalName = '';
+    let finalPhone = '';
+
+    if (mbClientType === 'REGISTERED') {
+      const client = state.clients.find(c => c.id === mbSelectedClientId);
+      if (!client) {
+        toast.error('Por favor, selecione um cliente cadastrado.');
+        return;
+      }
+      finalName = client.name;
+      finalPhone = client.phone;
+    } else {
+      if (!mbName.trim()) {
+        toast.error('Informe o nome do cliente.');
+        return;
+      }
+      finalName = mbName.trim();
+      finalPhone = mbPhone.trim();
+
+      if (mbSaveToClients) {
+        try {
+          await addClient({ name: mbName.trim(), phone: mbPhone.trim() });
+        } catch (err: any) {
+          console.error("Failed to quick-save client:", err);
+        }
+      }
+    }
+
+    if (!mbServiceId) {
+      toast.error('Selecione um serviço.');
+      return;
+    }
+
+    const barberIdToUse = isBarbeiro ? (currentBarbeiroId || mbBarberId) : mbBarberId;
+    if (!barberIdToUse) {
+      toast.error('Selecione um profissional.');
+      return;
+    }
+
+    try {
+      const dateLocalISO = `${mbDate}T${mbTime}:00`;
+      addAppointment({
+        clientName: finalName,
+        clientPhone: finalPhone,
+        serviceId: mbServiceId,
+        barberId: barberIdToUse,
+        date: dateLocalISO
+      });
+      toast.success('Agendamento manual adicionado com sucesso!');
+      
+      // Reset state
+      setManualBookingModalOpen(false);
+      setMbName('');
+      setMbPhone('');
+      setMbSelectedClientId('');
+    } catch (err: any) {
+      toast.error('Erro ao salvar agendamento manual.');
+    }
   };
 
   // Block handlers
@@ -324,6 +403,13 @@ export default function AdminAgenda() {
           <h1 className="text-xl sm:text-2xl font-semibold text-white tracking-tight">Agenda Completa</h1>
           <p className="text-xs text-[#777] mt-1">Gerencie a agenda, bloqueios e horários recorrentes.</p>
         </div>
+        <button
+          onClick={() => setManualBookingModalOpen(true)}
+          className="bg-transparent border border-[#C5A059] text-[#C5A059] font-bold px-4 py-2.5 rounded-xl text-xs uppercase tracking-widest hover:bg-[#C5A05911] flex items-center justify-center gap-2 transition-all self-start md:self-center"
+        >
+          <Plus size={16} />
+          Agendamento Manual (Walk-in / Telefone)
+        </button>
       </div>
 
       {/* Modern Tabs */}
@@ -936,6 +1022,181 @@ export default function AdminAgenda() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manual Booking Modal */}
+      {manualBookingModalOpen && (
+        <div className="fixed inset-0 bg-black/80 flex flex-col items-center justify-center z-50 p-4">
+          <div className="bg-[#121212] p-6 sm:p-8 rounded-3xl w-full max-w-lg border border-[#333] shadow-2xl animate-in zoom-in-95 duration-200 overflow-y-auto max-h-[90vh]">
+            <h2 className="text-xl font-bold text-white mb-4 uppercase tracking-wider flex items-center gap-2">
+              <CalendarIcon className="text-[#C5A059]" /> Agendamento Manual (Walk-in / Celular)
+            </h2>
+            <form onSubmit={handleConfirmManualBooking} className="space-y-4 text-white">
+              {/* Client Type Toggle */}
+              <div>
+                <label className="block text-xs uppercase tracking-[0.1em] text-[#777] font-medium mb-2">Perfil do Cliente</label>
+                <div className="grid grid-cols-2 gap-2 bg-[#1A1A1A] p-1 rounded-xl border border-[#222]">
+                  <button
+                    type="button"
+                    onClick={() => setMbClientType('NEW')}
+                    className={`py-2 text-xs font-bold rounded-lg transition-all ${
+                      mbClientType === 'NEW' ? 'bg-[#C5A059] text-black' : 'text-[#888] hover:text-white'
+                    }`}
+                  >
+                    Cliente Novo / Rápido
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMbClientType('REGISTERED')}
+                    className={`py-2 text-xs font-bold rounded-lg transition-all ${
+                      mbClientType === 'REGISTERED' ? 'bg-[#C5A059] text-black' : 'text-[#888] hover:text-white'
+                    }`}
+                  >
+                    Cliente Cadastrado
+                  </button>
+                </div>
+              </div>
+
+              {/* Client Details */}
+              {mbClientType === 'REGISTERED' ? (
+                <div>
+                  <label className="block text-xs uppercase tracking-[0.1em] text-[#777] font-medium mb-1.5">Selecionar Cliente</label>
+                  <select
+                    value={mbSelectedClientId}
+                    onChange={e => setMbSelectedClientId(e.target.value)}
+                    required
+                    className="w-full px-4 py-3 bg-[#1A1A1A] border border-[#333] text-white rounded-xl focus:border-[#C5A059] focus:outline-none transition-all"
+                  >
+                    <option value="">Selecione um cliente...</option>
+                    {state.clients.map(c => (
+                      <option key={c.id} value={c.id}>{c.name} {c.phone ? `(${c.phone})` : ''}</option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs uppercase tracking-[0.1em] text-[#777] font-medium mb-1.5">Nome do Cliente</label>
+                    <input
+                      type="text"
+                      required
+                      value={mbName}
+                      onChange={e => setMbName(e.target.value)}
+                      placeholder="Ex: Pedro Silva"
+                      className="w-full px-4 py-3 bg-[#1A1A1A] border border-[#333] text-white rounded-xl focus:border-[#C5A059] focus:outline-none transition-all placeholder-[#555]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs uppercase tracking-[0.1em] text-[#777] font-medium mb-1.5">Celular / Telefone</label>
+                    <input
+                      type="text"
+                      value={mbPhone}
+                      onChange={e => setMbPhone(e.target.value)}
+                      placeholder="Ex: (11) 99999-9999"
+                      className="w-full px-4 py-3 bg-[#1A1A1A] border border-[#333] text-white rounded-xl focus:border-[#C5A059] focus:outline-none transition-all placeholder-[#555]"
+                    />
+                  </div>
+                  <div className="sm:col-span-2 flex items-center gap-2 pt-1">
+                    <input
+                      type="checkbox"
+                      id="saveToClients"
+                      checked={mbSaveToClients}
+                      onChange={e => setMbSaveToClients(e.target.checked)}
+                      className="w-4 h-4 accent-[#C5A059]"
+                    />
+                    <label htmlFor="saveToClients" className="text-xs text-[#888] cursor-pointer">
+                      Salvar cliente automaticamente no cadastro geral para próximos agendamentos
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {/* Service & Professionals */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs uppercase tracking-[0.1em] text-[#777] font-medium mb-1.5">Serviço Desejado</label>
+                  <select
+                    value={mbServiceId}
+                    onChange={e => setMbServiceId(e.target.value)}
+                    required
+                    className="w-full px-4 py-3 bg-[#1A1A1A] border border-[#333] text-white rounded-xl focus:border-[#C5A059] focus:outline-none transition-all"
+                  >
+                    <option value="">Selecione um serviço...</option>
+                    {state.services.map(s => (
+                      <option key={s.id} value={s.id}>{s.name} - R$ {s.price.toFixed(2)}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs uppercase tracking-[0.1em] text-[#777] font-medium mb-1.5">Barbeiro / Atendente</label>
+                  {isBarbeiro ? (
+                    <div className="w-full px-4 py-3 bg-[#1A1A1A] border border-[#333] text-[#C5A059] rounded-xl font-bold uppercase tracking-wider text-sm select-none">
+                      {state.barbers.find(b => b.id === currentBarbeiroId)?.name || 'Meu Perfil'}
+                    </div>
+                  ) : (
+                    <select
+                      value={mbBarberId}
+                      onChange={e => setMbBarberId(e.target.value)}
+                      required
+                      className="w-full px-4 py-3 bg-[#1A1A1A] border border-[#333] text-white rounded-xl focus:border-[#C5A059] focus:outline-none transition-all"
+                    >
+                      <option value="">Selecione o profissional...</option>
+                      {state.barbers.filter(b => b.active).map(b => (
+                        <option key={b.id} value={b.id}>{b.name}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              </div>
+
+              {/* Date and Time */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs uppercase tracking-[0.1em] text-[#777] font-medium mb-1.5">Data</label>
+                  <input
+                    type="date"
+                    required
+                    value={mbDate}
+                    onChange={e => setMbDate(e.target.value)}
+                    className="w-full px-4 py-3 bg-[#1A1A1A] border border-[#333] text-white rounded-xl focus:border-[#C5A059] focus:outline-none transition-all"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs uppercase tracking-[0.1em] text-[#777] font-medium mb-1.5">Horário</label>
+                  <select
+                    value={mbTime}
+                    onChange={e => setMbTime(e.target.value)}
+                    required
+                    className="w-full px-4 py-3 bg-[#1A1A1A] border border-[#333] text-white rounded-xl focus:border-[#C5A059] focus:outline-none transition-all"
+                  >
+                    {dynamicTimes.map(t => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-4 pt-4 border-t border-[#222]">
+                <button
+                  type="button"
+                  onClick={() => setManualBookingModalOpen(false)}
+                  className="w-1/3 py-3.5 bg-[#1A1A1A] text-[#888] rounded-xl uppercase tracking-widest text-xs font-bold hover:bg-[#22000015] hover:text-[#FF3D00] transition-colors"
+                >
+                  Voltar
+                </button>
+                <button
+                  type="submit"
+                  className="w-2/3 py-3.5 bg-[#C5A059] text-black shadow-[0_0_15px_#C5A05933] rounded-xl uppercase tracking-widest text-xs font-bold hover:bg-[#D5B069] transition-colors"
+                >
+                  Agendar Cliente
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
