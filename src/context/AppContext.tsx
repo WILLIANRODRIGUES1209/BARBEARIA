@@ -89,15 +89,34 @@ const mapService = (s: any) => ({
   durationMinutes: s.duracao_minutos
 });
 
-const mapBarber = (b: any) => ({
-  id: b.id,
-  name: b.nome,
-  phone: b.telefone,
-  active: b.ativo,
-  comissao: b.comissao,
-  pin: b.pin,
-  acesso: b.acesso
-});
+const mapBarber = (b: any) => {
+  let phone = b.telefone || '';
+  let mediaUrl = '';
+  let mediaType: 'image' | 'video' = 'image';
+
+  if (phone.trim().startsWith('{')) {
+    try {
+      const parsed = JSON.parse(phone);
+      phone = parsed.phone || '';
+      mediaUrl = parsed.mediaUrl || '';
+      mediaType = parsed.mediaType || 'image';
+    } catch (e) {
+      // Not JSON JSON format, ignore error
+    }
+  }
+
+  return {
+    id: b.id,
+    name: b.nome,
+    phone: phone,
+    mediaUrl: mediaUrl,
+    mediaType: mediaType,
+    active: b.ativo,
+    comissao: b.comissao,
+    pin: b.pin,
+    acesso: b.acesso
+  };
+};
 
 const mapClient = (c: any) => ({
   id: c.id,
@@ -1046,10 +1065,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setState(prev => ({ ...prev, barbers: [...prev.barbers, { ...barber, id: tempId }] }));
     
     try {
+      const phoneString = JSON.stringify({
+        phone: barber.phone || '',
+        mediaUrl: barber.mediaUrl || '',
+        mediaType: barber.mediaType || 'image'
+      });
+
       const { data, error } = await supabase.from('barbeiros').insert({
         barbearia_id: barbearia.id,
         nome: barber.name,
-        telefone: barber.phone,
+        telefone: phoneString,
         ativo: barber.active,
         comissao: barber.comissao,
         pin: barber.pin,
@@ -1072,13 +1097,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       barbers: prev.barbers.map(b => b.id === id ? { ...b, ...updates } : b)
     }));
 
+    const currentBarberInState = state.barbers.find(b => b.id === id);
+
     const mappedData: any = {};
     if (updates.name !== undefined) mappedData.nome = updates.name;
-    if (updates.phone !== undefined) mappedData.telefone = updates.phone;
     if (updates.active !== undefined) mappedData.ativo = updates.active;
     if (updates.comissao !== undefined) mappedData.comissao = updates.comissao;
     if (updates.pin !== undefined) mappedData.pin = updates.pin;
     if (updates.acesso !== undefined) mappedData.acesso = updates.acesso;
+
+    if (updates.phone !== undefined || updates.mediaUrl !== undefined || updates.mediaType !== undefined) {
+      const phoneVal = updates.phone !== undefined ? updates.phone : (currentBarberInState?.phone || '');
+      const mediaUrlVal = updates.mediaUrl !== undefined ? updates.mediaUrl : (currentBarberInState?.mediaUrl || '');
+      const mediaTypeVal = updates.mediaType !== undefined ? updates.mediaType : (currentBarberInState?.mediaType || 'image');
+
+      mappedData.telefone = JSON.stringify({
+        phone: phoneVal,
+        mediaUrl: mediaUrlVal,
+        mediaType: mediaTypeVal
+      });
+    }
 
     try {
       await supabase.from('barbeiros').update(mappedData).eq('id', id);

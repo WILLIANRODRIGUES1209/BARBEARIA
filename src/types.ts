@@ -23,6 +23,8 @@ export type Barber = {
   comissao?: number;
   pin?: string;
   acesso?: string;
+  mediaUrl?: string;
+  mediaType?: 'image' | 'video';
 };
 
 export type Appointment = {

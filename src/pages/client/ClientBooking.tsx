@@ -312,8 +312,12 @@ export default function ClientBooking() {
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-[#222] rounded-full flex items-center justify-center text-[#777]">
-                      <User size={24} />
+                    <div className="w-12 h-12 bg-[#222] rounded-full flex items-center justify-center text-[#777] overflow-hidden">
+                      {b.mediaUrl && b.mediaType === 'image' ? (
+                        <img src={b.mediaUrl} alt={b.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <User size={24} />
+                      )}
                     </div>
                     <div>
                       <div className="font-medium text-white">{b.name}</div>
@@ -323,6 +327,60 @@ export default function ClientBooking() {
                 </button>
               ))}
             </div>
+
+            {selectedBarber && (
+              (() => {
+                const selBarb = state.barbers.find(x => x.id === selectedBarber);
+                if (!selBarb || !selBarb.mediaUrl) return null;
+                
+                return (
+                  <div className="mt-6 p-4 bg-[#1A1A1A] border border-[#222] rounded-2xl animate-in fade-in zoom-in-95 duration-300">
+                    <h3 className="text-xs uppercase tracking-widest text-[#C5A059] font-bold mb-3 text-center">
+                      Apresentação de {selBarb.name}
+                    </h3>
+                    
+                    <div className="w-full aspect-square max-w-[280px] mx-auto bg-[#121212] rounded-xl overflow-hidden border border-[#333] relative flex items-center justify-center shadow-lg">
+                      {selBarb.mediaType === 'video' ? (
+                        selBarb.mediaUrl.includes('youtube.com') || selBarb.mediaUrl.includes('youtu.be') || selBarb.mediaUrl.includes('vimeo.com') ? (
+                          <iframe
+                            src={
+                              selBarb.mediaUrl.includes('youtube.com/embed')
+                                ? selBarb.mediaUrl
+                                : selBarb.mediaUrl.includes('youtube.com/watch')
+                                ? selBarb.mediaUrl.replace('watch?v=', 'embed/')
+                                : selBarb.mediaUrl.includes('youtu.be/')
+                                ? `https://www.youtube.com/embed/${selBarb.mediaUrl.split('youtu.be/')[1]}`
+                                : selBarb.mediaUrl
+                            }
+                            className="w-full h-full border-0 absolute inset-0"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowFullScreen
+                          ></iframe>
+                        ) : (
+                          <video
+                            src={selBarb.mediaUrl}
+                            controls
+                            autoPlay
+                            muted
+                            loop
+                            className="w-full h-full object-cover absolute inset-0"
+                          />
+                        )
+                      ) : (
+                        <img
+                          src={selBarb.mediaUrl}
+                          alt={selBarb.name}
+                          className="w-full h-full object-cover absolute inset-0"
+                          style={{ objectFit: 'cover' }}
+                          referrerPolicy="no-referrer"
+                        />
+                      )}
+                    </div>
+                  </div>
+                );
+              })()
+            )}
+
             <div className="flex gap-3 mt-8">
               <button
                 onClick={() => setStep(1)}

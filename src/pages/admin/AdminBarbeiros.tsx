@@ -11,8 +11,8 @@ export default function AdminBarbeiros() {
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  const [newBarber, setNewBarber] = useState<Omit<Barber, 'id'>>({ name: '', phone: '', specialties: '', active: true, comissao: 50, pin: '', acesso: '' });
-  const [editForm, setEditForm] = useState<Omit<Barber, 'id'>>({ name: '', phone: '', specialties: '', active: true, comissao: 50, pin: '', acesso: '' });
+  const [newBarber, setNewBarber] = useState<Omit<Barber, 'id'>>({ name: '', phone: '', specialties: '', active: true, comissao: 50, pin: '', acesso: '', mediaUrl: '', mediaType: 'image' });
+  const [editForm, setEditForm] = useState<Omit<Barber, 'id'>>({ name: '', phone: '', specialties: '', active: true, comissao: 50, pin: '', acesso: '', mediaUrl: '', mediaType: 'image' });
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,12 +20,12 @@ export default function AdminBarbeiros() {
     
     addBarber(newBarber);
     setIsAdding(false);
-    setNewBarber({ name: '', phone: '', specialties: '', active: true, comissao: 50, pin: '', acesso: '' });
+    setNewBarber({ name: '', phone: '', specialties: '', active: true, comissao: 50, pin: '', acesso: '', mediaUrl: '', mediaType: 'image' });
   };
 
   const startEdit = (b: Barber) => {
     setEditingId(b.id);
-    setEditForm({ name: b.name, phone: b.phone || '', specialties: b.specialties || '', active: b.active, comissao: b.comissao || 0, pin: b.pin || '', acesso: b.acesso || '' });
+    setEditForm({ name: b.name, phone: b.phone || '', specialties: b.specialties || '', active: b.active, comissao: b.comissao || 0, pin: b.pin || '', acesso: b.acesso || '', mediaUrl: b.mediaUrl || '', mediaType: b.mediaType || 'image' });
   };
 
   const handleUpdate = (id: string) => {
@@ -114,6 +114,28 @@ export default function AdminBarbeiros() {
               className="w-full px-4 py-3 bg-[#1A1A1A] border border-[#333] text-white rounded focus:border-[#C5A059] focus:outline-none transition-colors"
             />
           </div>
+          <div>
+            <label className="block text-xs uppercase tracking-[0.1em] text-[#555] font-medium mb-2">Aparição (Tipo de Mídia)</label>
+            <select
+              value={newBarber.mediaType || 'image'}
+              onChange={e => setNewBarber({...newBarber, mediaType: e.target.value as 'image' | 'video'})}
+              className="w-full px-4 py-3 bg-[#1A1A1A] border border-[#333] text-white rounded focus:border-[#C5A059] focus:outline-none transition-colors"
+            >
+              <option value="image">Foto (Imagem)</option>
+              <option value="video">Vídeo (MP4/YouTube/Vimeo)</option>
+            </select>
+          </div>
+          <div className="md:col-span-2">
+            <label className="block text-xs uppercase tracking-[0.1em] text-[#555] font-medium mb-2">Link da Foto ou Vídeo de Apresentação</label>
+            <input 
+              type="text" 
+              placeholder="Ex: https://imgur.com/link_da_foto.png ou link_do_video_mp4"
+              value={newBarber.mediaUrl || ''}
+              onChange={e => setNewBarber({...newBarber, mediaUrl: e.target.value})}
+              className="w-full px-4 py-3 bg-[#1A1A1A] border border-[#333] text-white rounded focus:border-[#C5A059] focus:outline-none transition-colors"
+            />
+            <p className="text-[10px] text-[#555] mt-1">Insira um link direto de imagem quadrada/vídeo curto ou link completo para exibição no ato de agendar.</p>
+          </div>
           <div className="md:col-span-2 flex justify-end">
             <button type="submit" className="bg-[#C5A059] text-[#0A0A0A] font-bold text-xs uppercase tracking-widest px-6 py-3 rounded hover:bg-[#8E6D31] transition-colors">
               Salvar Barbeiro
@@ -145,7 +167,20 @@ export default function AdminBarbeiros() {
                       className="w-full px-3 py-2 bg-[#1A1A1A] border border-[#333] text-white text-sm rounded focus:border-[#C5A059] focus:outline-none"
                     />
                   ) : (
-                    <span className="font-medium text-white">{b.name}</span>
+                    <div className="flex items-center gap-3">
+                      {b.mediaUrl ? (
+                        b.mediaType === 'video' ? (
+                          <div className="w-10 h-10 rounded bg-[#C5A059] flex items-center justify-center text-xs font-bold text-black shadow" title="Vídeo">▶</div>
+                        ) : (
+                          <img src={b.mediaUrl} alt={b.name} className="w-10 h-10 rounded object-cover border border-[#333] shadow" referrerPolicy="no-referrer" />
+                        )
+                      ) : (
+                        <div className="w-10 h-10 rounded bg-[#1A1A1A] border border-[#222] flex items-center justify-center text-xs text-[#555]">
+                          <Scissors size={14} />
+                        </div>
+                      )}
+                      <span className="font-medium text-white">{b.name}</span>
+                    </div>
                   )}
                 </td>
                 <td className="p-4 hidden md:table-cell">
@@ -160,16 +195,39 @@ export default function AdminBarbeiros() {
                       />
                       <input 
                         type="text" 
-                        value={editForm.specialties}
+                        value={editForm.specialties || ''}
                         placeholder="Especialidades"
                         onChange={e => setEditForm({...editForm, specialties: e.target.value})}
                         className="w-full px-3 py-2 bg-[#1A1A1A] border border-[#333] text-white text-sm rounded focus:border-[#C5A059] focus:outline-none"
                       />
+                      <div className="pt-2 border-t border-[#222] space-y-1">
+                        <label className="block text-[10px] uppercase text-[#555]">Mídia de Apresentação</label>
+                        <select
+                          value={editForm.mediaType || 'image'}
+                          onChange={e => setEditForm({...editForm, mediaType: e.target.value as 'image' | 'video'})}
+                          className="w-full bg-[#1A1A1A] border border-[#333] text-white text-xs rounded focus:border-[#C5A059] focus:outline-none px-2 py-1"
+                        >
+                          <option value="image">Mídia: Foto (Imagem)</option>
+                          <option value="video">Mídia: Vídeo</option>
+                        </select>
+                        <input 
+                          type="text" 
+                          value={editForm.mediaUrl || ''}
+                          placeholder="Link da foto/vídeo"
+                          onChange={e => setEditForm({...editForm, mediaUrl: e.target.value})}
+                          className="w-full px-2 py-1 bg-[#1A1A1A] border border-[#333] text-white text-xs rounded focus:border-[#C5A059] focus:outline-none"
+                        />
+                      </div>
                     </div>
                   ) : (
                     <div>
                       <div className="text-sm text-[#777]">{b.phone || '-'}</div>
                       <div className="text-xs text-[#555] mt-1">{b.specialties}</div>
+                      {b.mediaUrl && (
+                        <div className="text-[10px] text-[#C5A059] mt-1 font-semibold flex items-center gap-1">
+                          <span>• {b.mediaType === 'video' ? 'Com Vídeo Apresentação' : 'Com Foto Apresentação'}</span>
+                        </div>
+                      )}
                     </div>
                   )}
                 </td>
