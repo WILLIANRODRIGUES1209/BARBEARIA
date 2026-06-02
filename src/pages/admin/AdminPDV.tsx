@@ -45,7 +45,7 @@ export default function AdminPDV() {
     setCartItems(prev => prev.filter(i => !(i.id === id && i.type === type)));
   };
 
-  const handleCheckout = () => {
+  const handleCheckout = async () => {
     if (cartItems.length === 0 || isSubmitting) return;
 
     // Guard: Prevent checkout of services without identifying the responsible professional
@@ -59,65 +59,76 @@ export default function AdminPDV() {
 
     setIsSubmitting(true);
 
-    // Remove from stock
-    cartItems.forEach(item => {
-      if (item.type === 'PRODUCT') {
-        const product = state.products.find(p => p.id === item.id);
-        if (product) {
-          updateProduct(product.id, { quantity: Math.max(0, product.quantity - item.quantity) });
-        }
-      }
-    });
-
-    const checkoutDateStr = new Date().toISOString();
-    const clientName = state.clients.find(c => c.id === selectedClient)?.name || 'Cliente Avulso';
-
-    // Record Transaction
-    addTransaction({
-      type: 'INCOME',
-      amount: total,
-      description: `Venda PDV - ${clientName} - ${cartItems.length} itens (${paymentMethod})`,
-      date: checkoutDateStr,
-    });
-
-    // Commission logic for Services in PDV
-    const servicesTotal = cartItems.filter(i => i.type === 'SERVICE').reduce((acc, item) => acc + (item.price * item.quantity), 0);
-    if (servicesTotal > 0 && selectedBarber) {
-      const barber = state.barbers.find(b => b.id === selectedBarber);
-      if (barber && barber.comissao && barber.comissao > 0) {
-        // Proportionally apply discount to services, or just use raw services total for commission? Usually raw.
-        const comissionValue = (servicesTotal * barber.comissao) / 100;
-        addTransaction({
-          type: 'EXPENSE',
-          amount: comissionValue,
-          description: `Comissão Barbeiro (${barber.name}) - Venda PDV - ${barber.comissao}%`,
-          date: checkoutDateStr,
-        });
-      }
-
-      // Record completed appointments for services sold in PDV so they appear in Meu Historico and reports
-      cartItems.forEach(item => {
-        if (item.type === 'SERVICE') {
-          const clientPhone = state.clients.find(c => c.id === selectedClient)?.phone || '0000000000';
-          for (let k = 0; k < item.quantity; k++) {
-            addAppointment({
-              clientName,
-              clientPhone,
-              serviceId: item.id,
-              barberId: selectedBarber,
-              date: checkoutDateStr
-            }, 'COMPLETED');
+    try {
+      // Remove from stock
+      const productUpdates = cartItems
+        .filter(item => item.type === 'PRODUCT')
+        .map(async (item) => {
+          const product = state.products.find(p => p.id === item.id);
+          if (product) {
+            await updateProduct(product.id, { quantity: Math.max(0, product.quantity - item.quantity) });
           }
-        }
-      });
-    }
+        });
+      await Promise.all(productUpdates);
 
-    toast.success('Venda finalizada com sucesso!');
-    setCartItems([]);
-    setSelectedClient('');
-    if (!isBarbeiro) setSelectedBarber('');
-    setDiscount(0);
-    setTimeout(() => setIsSubmitting(false), 800);
+      const checkoutDateStr = new Date().toISOString();
+      const clientName = state.clients.find(c => c.id === selectedClient)?.name || 'Cliente Avulso';
+
+      // Record Transaction
+      await addTransaction({
+        type: 'INCOME',
+        amount: total,
+        description: `Venda PDV - ${clientName} - ${cartItems.length} itens (${paymentMethod})`,
+        date: checkoutDateStr,
+      });
+
+      // Commission logic for Services in PDV
+      const servicesTotal = cartItems.filter(i => i.type === 'SERVICE').reduce((acc, item) => acc + (item.price * item.quantity), 0);
+      if (servicesTotal > 0 && selectedBarber) {
+        const barber = state.barbers.find(b => b.id === selectedBarber);
+        if (barber && barber.comissao && barber.comissao > 0) {
+          // Proportionally apply discount to services, or just use raw services total for commission? Usually raw.
+          const comissionValue = (servicesTotal * barber.comissao) / 100;
+          await addTransaction({
+            type: 'EXPENSE',
+            amount: comissionValue,
+            description: `Comissão Barbeiro (${barber.name}) - Venda PDV - ${barber.comissao}%`,
+            date: checkoutDateStr,
+          });
+        }
+
+        // Record completed appointments for services sold in PDV so they appear in Meu Historico and reports
+        const appointmentProms: Promise<void>[] = [];
+        cartItems.forEach(item => {
+          if (item.type === 'SERVICE') {
+            const clientPhone = state.clients.find(c => c.id === selectedClient)?.phone || '0000000000';
+            for (let k = 0; k < item.quantity; k++) {
+              appointmentProms.push(
+                addAppointment({
+                  clientName,
+                  clientPhone,
+                  serviceId: item.id,
+                  barberId: selectedBarber,
+                  date: checkoutDateStr
+                }, 'COMPLETED')
+              );
+            }
+          }
+        });
+        await Promise.all(appointmentProms);
+      }
+
+      toast.success('Venda finalizada com sucesso!');
+      setCartItems([]);
+      setSelectedClient('');
+      if (!isBarbeiro) setSelectedBarber('');
+      setDiscount(0);
+    } catch (err: any) {
+      console.error("Erro ao finalizar venda:", err);
+      toast.error('Ocorreu um erro ao registrar a venda.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (

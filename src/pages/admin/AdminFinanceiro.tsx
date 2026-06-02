@@ -15,9 +15,26 @@ export default function AdminFinanceiro() {
   const [chatInput, setChatInput] = useState('');
   const [chatResponse, setChatResponse] = useState('');
 
+  // Unique/Deduplicated transactions in-memory to prevent historic race conditions from corrupting totals
+  const uniqueTransactions = useMemo(() => {
+    const seenRefs = new Set<string>();
+    return state.transactions.filter(t => {
+      const match = t.description.match(/\(Ref:\s*([^)]+)\)/);
+      if (match) {
+        const refId = match[1];
+        const uniqueKey = `${t.type}-${refId}`;
+        if (seenRefs.has(uniqueKey)) {
+          return false; // Skip duplicate of same type and reference
+        }
+        seenRefs.add(uniqueKey);
+      }
+      return true;
+    });
+  }, [state.transactions]);
+
   const filteredTransactions = useMemo(() => {
     const now = new Date();
-    return state.transactions.filter(t => {
+    return uniqueTransactions.filter(t => {
       // 1. Date Filter
       if (dateFilter !== 'ALL') {
          const tDate = parseISO(t.date);
@@ -32,14 +49,21 @@ export default function AdminFinanceiro() {
 
       return true;
     });
-  }, [state.transactions, dateFilter, paymentMethodFilter]);
+  }, [uniqueTransactions, dateFilter, paymentMethodFilter]);
 
   // Individualized Finance calculations per Barber respecting active Date Filter
   const filteredAppointments = useMemo(() => {
     const now = new Date();
-    return state.appointments.filter(a => {
-      if (a.status !== 'COMPLETED') return false;
+    
+    // Deduplicate appointments by unique ID (avoid twin entries)
+    const uniqueMap = new Map<string, typeof state.appointments[0]>();
+    state.appointments.forEach(a => {
+      if (a.id && a.status === 'COMPLETED') {
+        uniqueMap.set(a.id, a);
+      }
+    });
 
+    return Array.from(uniqueMap.values()).filter(a => {
       // Date Filter
       if (dateFilter !== 'ALL') {
          const tDate = parseISO(a.date);
@@ -79,7 +103,7 @@ export default function AdminFinanceiro() {
   // but respecting the date filter to show accurate boxes
   const totalsByMethod = useMemo(() => {
     const now = new Date();
-    const dateFiltered = state.transactions.filter(t => {
+    const dateFiltered = uniqueTransactions.filter(t => {
       if (dateFilter === 'ALL') return true;
       const tDate = parseISO(t.date);
       if (dateFilter === 'TODAY') return isWithinInterval(tDate, { start: startOfDay(now), end: endOfDay(now) });
@@ -95,7 +119,7 @@ export default function AdminFinanceiro() {
       'Cartão de Débito': incomes.filter(t => t.description.includes('Cartão de Débito')).reduce((sum, t) => sum + t.amount, 0),
       'Dinheiro': incomes.filter(t => t.description.includes('Dinheiro')).reduce((sum, t) => sum + t.amount, 0),
     };
-  }, [state.transactions, dateFilter]);
+  }, [uniqueTransactions, dateFilter]);
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();

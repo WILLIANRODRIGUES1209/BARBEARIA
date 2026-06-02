@@ -99,6 +99,10 @@ export default function AdminAgenda() {
   const [mbTime, setMbTime] = useState('09:00');
   const [mbSaveToClients, setMbSaveToClients] = useState(true);
 
+  // Loading/lock states for anti-duplication / debouncing
+  const [isPaying, setIsPaying] = useState(false);
+  const [isBooking, setIsBooking] = useState(false);
+
   // Form states for Block
   const [blockDate, setBlockDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [blockTime, setBlockTime] = useState('09:00');
@@ -170,17 +174,28 @@ export default function AdminAgenda() {
     setDetailsModalOpen(false);
   };
 
-  const handleConfirmPay = () => {
+  const handleConfirmPay = async () => {
+    if (isPaying) return;
     if (payApptId) {
       const appt = state.appointments.find(a => a.id === payApptId);
       const service = state.services.find(s => s.id === appt?.serviceId);
       if (appt && service) {
+        setIsPaying(true);
         const amt = parseFloat(customPrice);
         const finalPrice = isNaN(amt) || amt < 0 ? service.price : amt;
-        payAppointment(appt.id, paymentMethod, finalPrice, service.name);
+        try {
+          await payAppointment(appt.id, paymentMethod, finalPrice, service.name);
+          setPayModalOpen(false);
+          setPayApptId(null);
+        } catch (e) {
+          console.error("Erro no recebimento do agendamento:", e);
+        } finally {
+          setIsPaying(false);
+        }
+      } else {
+        setPayModalOpen(false);
+        setPayApptId(null);
       }
-      setPayModalOpen(false);
-      setPayApptId(null);
     }
   };
 
@@ -191,49 +206,55 @@ export default function AdminAgenda() {
 
   const handleConfirmManualBooking = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isBooking) return;
     
     let finalName = '';
     let finalPhone = '';
 
-    if (mbClientType === 'REGISTERED') {
-      const client = state.clients.find(c => c.id === mbSelectedClientId);
-      if (!client) {
-        toast.error('Por favor, selecione um cliente cadastrado.');
-        return;
-      }
-      finalName = client.name;
-      finalPhone = client.phone;
-    } else {
-      if (!mbName.trim()) {
-        toast.error('Informe o nome do cliente.');
-        return;
-      }
-      finalName = mbName.trim();
-      finalPhone = mbPhone.trim();
+    setIsBooking(true);
+    try {
+      if (mbClientType === 'REGISTERED') {
+        const client = state.clients.find(c => c.id === mbSelectedClientId);
+        if (!client) {
+          toast.error('Por favor, selecione um cliente cadastrado.');
+          setIsBooking(false);
+          return;
+        }
+        finalName = client.name;
+        finalPhone = client.phone;
+      } else {
+        if (!mbName.trim()) {
+          toast.error('Informe o nome do cliente.');
+          setIsBooking(false);
+          return;
+        }
+        finalName = mbName.trim();
+        finalPhone = mbPhone.trim();
 
-      if (mbSaveToClients) {
-        try {
-          await addClient({ name: mbName.trim(), phone: mbPhone.trim() });
-        } catch (err: any) {
-          console.error("Failed to quick-save client:", err);
+        if (mbSaveToClients) {
+          try {
+            await addClient({ name: mbName.trim(), phone: mbPhone.trim() });
+          } catch (err: any) {
+            console.error("Failed to quick-save client:", err);
+          }
         }
       }
-    }
 
-    if (!mbServiceId) {
-      toast.error('Selecione um serviço.');
-      return;
-    }
+      if (!mbServiceId) {
+        toast.error('Selecione um serviço.');
+        setIsBooking(false);
+        return;
+      }
 
-    const barberIdToUse = isBarbeiro ? (currentBarbeiroId || mbBarberId) : mbBarberId;
-    if (!barberIdToUse) {
-      toast.error('Selecione um profissional.');
-      return;
-    }
+      const barberIdToUse = isBarbeiro ? (currentBarbeiroId || mbBarberId) : mbBarberId;
+      if (!barberIdToUse) {
+        toast.error('Selecione um profissional.');
+        setIsBooking(false);
+        return;
+      }
 
-    try {
       const dateLocalISO = `${mbDate}T${mbTime}:00`;
-      addAppointment({
+      await addAppointment({
         clientName: finalName,
         clientPhone: finalPhone,
         serviceId: mbServiceId,
@@ -249,6 +270,8 @@ export default function AdminAgenda() {
       setMbSelectedClientId('');
     } catch (err: any) {
       toast.error('Erro ao salvar agendamento manual.');
+    } finally {
+      setIsBooking(false);
     }
   };
 
@@ -408,7 +431,7 @@ export default function AdminAgenda() {
           className="bg-transparent border border-[#C5A059] text-[#C5A059] font-bold px-4 py-2.5 rounded-xl text-xs uppercase tracking-widest hover:bg-[#C5A05911] flex items-center justify-center gap-2 transition-all self-start md:self-center"
         >
           <Plus size={16} />
-          Agendamento Manual 
+          Agendamento Manual (Walk-in / Telefone)
         </button>
       </div>
 
@@ -900,40 +923,44 @@ export default function AdminAgenda() {
                         <div className="text-sm text-[#777] truncate">{selectedAppt.clientPhone}</div>
                       </div>
                     </div>
-                    <div className="flex justify-between items-center border-b border-[#333] pb-3">
-                      <div className="flex items-center gap-3">
-                        <Scissors className="text-[#888] shrink-0" size={20} />
-                        <div className="min-w-0">
-                          <div className="text-[10px] text-[#777] uppercase tracking-widest font-bold mb-0.5">Serviço</div>
-                          <div className="text-white font-medium truncate">{service?.name || 'Bloqueio / Especial'}</div>
-                        </div>
+                    <div className="flex items-center gap-3 border-b border-[#333] pb-3">
+                      <Scissors className="text-[#888] shrink-0" size={20} />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[10px] text-[#777] uppercase tracking-widest font-bold mb-0.5">Serviço</div>
+                        <div className="text-white font-medium break-words leading-tight">{service?.name || 'Bloqueio / Especial'}</div>
                       </div>
-                      {service && (
-                        <div className="text-right shrink-0 ml-2">
-                          <div className="text-[10px] text-[#777] uppercase tracking-widest font-bold mb-1">Valor</div>
-                          <div className="flex items-center gap-1 bg-[#222] border border-[#333] px-2 py-1 rounded-lg focus-within:border-[#C5A059] focus-within:ring-1 focus-within:ring-[#C5A059]">
-                            <span className="text-[10px] text-[#C5A059] font-extrabold">R$</span>
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={customPrice}
-                              onChange={(e) => setCustomPrice(e.target.value)}
-                              className="bg-transparent text-[#C5A059] font-extrabold text-xs w-16 text-right focus:outline-none border-none p-0 outline-none select-all"
-                            />
-                          </div>
-                        </div>
-                      )}
                     </div>
-                    <div className="flex items-center gap-3 pt-1">
+                    <div className="flex items-center gap-3 border-b border-[#333] pb-3">
                       <div className="w-5 h-5 rounded-full bg-[#333] flex items-center justify-center shrink-0">
                         <User size={12} className="text-[#888]" />
                       </div>
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <div className="text-[10px] text-[#777] uppercase tracking-widest font-bold mb-0.5">Profissional</div>
                         <div className="text-white font-medium truncate uppercase">{barber?.name || '-'}</div>
                       </div>
                     </div>
+                    {service && (
+                      <div className="flex items-center justify-between pt-1">
+                        <div className="flex items-center gap-3">
+                          <DollarSign className="text-[#C5A059] shrink-0" size={20} />
+                          <div>
+                            <div className="text-[10px] text-[#777] uppercase tracking-widest font-bold mb-0.5">Preço do Atendimento</div>
+                            <div className="text-[#888] text-[10px]">Ajuste o preço se necessário</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 bg-[#222] border border-[#333] hover:border-[#C5A05944] px-3 py-1.5 rounded-xl focus-within:border-[#C5A059] focus-within:ring-1 focus-within:ring-[#C5A059] transition-all">
+                          <span className="text-xs text-[#C5A059] font-extrabold">R$</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01;any"
+                            value={customPrice}
+                            onChange={(e) => setCustomPrice(e.target.value)}
+                            className="bg-transparent text-[#C5A059] font-extrabold text-sm w-20 text-right focus:outline-none border-none p-0 outline-none select-all [&::-webkit-inner-spin-button]:appearance-none"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Actions */}
@@ -1008,17 +1035,19 @@ export default function AdminAgenda() {
               <div className="flex gap-4">
                 <button
                   type="button"
+                  disabled={isPaying}
                   onClick={() => setPayModalOpen(false)}
-                  className="w-1/3 py-4 bg-[#1A1A1A] text-[#888] rounded-xl uppercase tracking-widest text-[10px] font-bold hover:bg-[#222] transition-colors"
+                  className="w-1/3 py-4 bg-[#1A1A1A] text-[#888] rounded-xl uppercase tracking-widest text-[10px] font-bold hover:bg-[#222] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                 >
                   Cancelar
                 </button>
                 <button
                   type="button"
+                  disabled={isPaying}
                   onClick={handleConfirmPay}
-                  className="w-2/3 py-4 bg-[#00C853] text-[#0A0A0A] shadow-[0_0_15px_#00C85344] rounded-xl uppercase tracking-widest text-[10px] sm:text-xs font-bold hover:bg-[#00E676] transition-colors"
+                  className="w-2/3 py-4 bg-[#00C853] text-[#0A0A0A] shadow-[0_0_15px_#00C85344] rounded-xl uppercase tracking-widest text-[10px] sm:text-xs font-bold hover:bg-[#00E676] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Confirmar Recebimento
+                  {isPaying ? 'Processando...' : 'Confirmar Recebimento'}
                 </button>
               </div>
             </div>
@@ -1184,16 +1213,18 @@ export default function AdminAgenda() {
               <div className="flex gap-4 pt-4 border-t border-[#222]">
                 <button
                   type="button"
+                  disabled={isBooking}
                   onClick={() => setManualBookingModalOpen(false)}
-                  className="w-1/3 py-3.5 bg-[#1A1A1A] text-[#888] rounded-xl uppercase tracking-widest text-xs font-bold hover:bg-[#22000015] hover:text-[#FF3D00] transition-colors"
+                  className="w-1/3 py-3.5 bg-[#1A1A1A] text-[#888] rounded-xl uppercase tracking-widest text-xs font-bold hover:bg-[#22000015] hover:text-[#FF3D00] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                 >
                   Voltar
                 </button>
                 <button
                   type="submit"
-                  className="w-2/3 py-3.5 bg-[#C5A059] text-black shadow-[0_0_15px_#C5A05933] rounded-xl uppercase tracking-widest text-xs font-bold hover:bg-[#D5B069] transition-colors"
+                  disabled={isBooking}
+                  className="w-2/3 py-3.5 bg-[#C5A059] text-black shadow-[0_0_15px_#C5A05933] rounded-xl uppercase tracking-widest text-xs font-bold hover:bg-[#D5B069] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Agendar Cliente
+                  {isBooking ? 'Processando...' : 'Agendar Cliente'}
                 </button>
               </div>
             </form>

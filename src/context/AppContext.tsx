@@ -430,6 +430,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addAppointment = async (appt: Omit<Appointment, 'id' | 'status'>, initialStatus: Appointment['status'] = 'PENDING') => {
     if (!barbearia) return;
+
+    // Prevent duplicate bookings on future schedules
+    if (initialStatus === 'PENDING') {
+      const localDuplicate = state.appointments.some(a => 
+        a.barberId === appt.barberId &&
+        a.clientName === appt.clientName &&
+        a.date === appt.date &&
+        a.serviceId === appt.serviceId &&
+        a.status !== 'CANCELLED'
+      );
+      if (localDuplicate) {
+        console.warn("Agendamento duplicado detectado localmente.");
+        toast.error("Este agendamento já está registrado localmente.");
+        return;
+      }
+
+      try {
+        const { data: dbDuplicates, error: dbCheckErr } = await supabase
+          .from('agendamentos')
+          .select('id')
+          .eq('barbearia_id', barbearia.id)
+          .eq('cliente_nome', appt.clientName)
+          .eq('barbeiro_id', appt.barberId)
+          .eq('data_hora', appt.date)
+          .neq('status', 'CANCELADO');
+
+        if (!dbCheckErr && dbDuplicates && dbDuplicates.length > 0) {
+          console.warn("Agendamento duplicado detectado no banco.");
+          toast.error("Este agendamento já está cadastrado no sistema.");
+          return;
+        }
+      } catch (checkErr) {
+        console.error("Erro verificando agendamentos duplicados:", checkErr);
+      }
+    }
     
     // Generate high-fidelity UUID on the client side
     const appointmentId = (() => {
@@ -522,8 +557,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const payAppointment = async (id: string, paymentMethod: string, amount: number, description: string) => {
     if (!barbearia) return;
     
-    // Calculate Commission
     const appt = state.appointments.find(a => a.id === id);
+    if (!appt) {
+      toast.error('Agendamento não encontrado!');
+      return;
+    }
+
+    if (appt.status === 'COMPLETED') {
+      console.warn(`Agendamento ${id} já possui status COMPLETED.`);
+      return;
+    }
+
+    // Direct Database pre-existence check against duplicate records
+    try {
+      const { data: existingTx, error: checkError } = await supabase
+        .from('transacoes')
+        .select('id')
+        .eq('barbearia_id', barbearia.id)
+        .like('descricao', `%(Ref: ${id})%`);
+
+      if (checkError) {
+        console.error("Erro ao verificar transações duplicadas:", checkError);
+      } else if (existingTx && existingTx.length > 0) {
+        console.warn(`Tentativa de recebimento duplicado para agendamento ${id} bloqueada.`);
+        toast.error('Este agendamento já possui recebimento registrado.');
+        
+        // Ensure local status aligns with DB just in case
+        setState(prev => ({
+          ...prev,
+          appointments: prev.appointments.map(a => a.id === id ? { ...a, status: 'COMPLETED' as const } : a)
+        }));
+        return;
+      }
+    } catch (e) {
+      console.error("Erro no pre-check de transações:", e);
+    }
+    
+    // Calculate Commission
     let commissionTransaction: any = null;
     let commissionEntity: any = null;
 
