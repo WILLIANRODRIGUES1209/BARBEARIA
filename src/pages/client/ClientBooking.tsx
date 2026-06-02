@@ -8,6 +8,48 @@ import { addDays, format, isSameDay, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { loadConfig } from '../../utils/configHelper';
 
+const getEmbedUrl = (url: string): string => {
+  if (!url) return '';
+  let id = '';
+  
+  if (url.includes('youtube.com/shorts/')) {
+    const splitShort = url.split('youtube.com/shorts/');
+    if (splitShort[1]) {
+      id = splitShort[1].split('?')[0].split('&')[0];
+    }
+  } else if (url.includes('youtu.be/shorts/')) {
+    const splitShort = url.split('youtu.be/shorts/');
+    if (splitShort[1]) {
+      id = splitShort[1].split('?')[0].split('&')[0];
+    }
+  } else if (url.includes('youtube.com/watch')) {
+    const splitWatch = url.split('v=');
+    if (splitWatch[1]) {
+      id = splitWatch[1].split('&')[0];
+    }
+  } else if (url.includes('youtu.be/')) {
+    const splitBe = url.split('youtu.be/');
+    if (splitBe[1]) {
+      id = splitBe[1].split('?')[0].split('&')[0];
+    }
+  } else if (url.includes('youtube.com/embed/')) {
+    return url;
+  }
+  
+  if (id) {
+    return `https://www.youtube.com/embed/${id}?autoplay=1&mute=1&loop=1&playlist=${id}&controls=0&modestbranding=1&showinfo=0&rel=0`;
+  }
+  
+  if (url.includes('vimeo.com/') && !url.includes('player.vimeo.com')) {
+    const vimId = url.split('vimeo.com/')[1]?.split('?')[0];
+    if (vimId) {
+      return `https://player.vimeo.com/video/${vimId}?autoplay=1&muted=1&loop=1&background=1`;
+    }
+  }
+  
+  return url;
+};
+
 export default function ClientBooking() {
   const { state, addAppointment } = useAppContext();
   const { barbearia, fetchBySlug } = useBarbearia();
@@ -19,6 +61,8 @@ export default function ClientBooking() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [clientInfo, setClientInfo] = useState({ name: '', phone: '' });
+  const [videoPiPMode, setVideoPiPMode] = useState<'floating' | 'background' | 'hidden'>('floating');
+  const [bgOpacity, setBgOpacity] = useState<number>(0.08);
   const [config, setConfig] = useState({
     workStart: "08:00",
     lunchStart: "12:00",
@@ -211,7 +255,53 @@ export default function ClientBooking() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0A0A0A] flex flex-col items-center py-6 sm:py-12 px-4 font-sans text-[#E0E0E0]">
+    <div className="min-h-screen bg-[#0A0A0A] flex flex-col items-center py-6 sm:py-12 px-4 font-sans text-[#E0E0E0] relative">
+      {/* Background Ambient Video Underplay */}
+      {selectedBarber && (step === 3 || step === 4) && videoPiPMode === 'background' && (
+        (() => {
+          const selBarb = state.barbers.find(x => x.id === selectedBarber);
+          if (!selBarb || !selBarb.mediaUrl) return null;
+          
+          const embedUrl = getEmbedUrl(selBarb.mediaUrl);
+          const isIframeVideo = embedUrl.includes('youtube.com') || embedUrl.includes('youtu.be') || embedUrl.includes('player.vimeo.com');
+
+          return (
+            <div 
+              className="fixed inset-0 w-full h-full pointer-events-none z-0 overflow-hidden select-none transition-all duration-1000"
+              style={{ opacity: bgOpacity }}
+            >
+              {selBarb.mediaType === 'video' ? (
+                isIframeVideo ? (
+                  <iframe
+                    src={`${embedUrl}${embedUrl.includes('?') ? '&' : '?'}controls=0&modestbranding=1&autoplay=1&mute=1&loop=1`}
+                    className="absolute inset-0 w-[300%] h-[300%] -translate-x-[33%] -translate-y-[33%] border-0 object-cover pointer-events-none"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  />
+                ) : (
+                  <video
+                    src={selBarb.mediaUrl}
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                    className="w-full h-full object-cover min-w-full min-h-full"
+                  />
+                )
+              ) : (
+                <img
+                  src={selBarb.mediaUrl}
+                  alt=""
+                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+              )}
+              {/* Radial gradient screen filter */}
+              <div className="absolute inset-0 bg-[#0A0A0A]/40 bg-gradient-to-t from-[#0A0A0A] via-transparent to-[#0A0A0A]" />
+            </div>
+          );
+        })()
+      )}
+
       {/* Header */}
       <div className="text-center mb-6 sm:mb-8">
         {config.logoUrl ? (
@@ -248,6 +338,82 @@ export default function ClientBooking() {
               </div>
             ))}
           </div>
+        )}
+
+        {/* Video Mode Controller in Step 3 or 4 */}
+        {selectedBarber && (step === 3 || step === 4) && (
+          (() => {
+            const selBarb = state.barbers.find(x => x.id === selectedBarber);
+            if (!selBarb || !selBarb.mediaUrl || selBarb.mediaType !== 'video') return null;
+            
+            return (
+              <div className="mb-6 p-4 bg-[#1A1A1A] border border-[#222] rounded-2xl flex flex-col gap-3 animate-in fade-in duration-300 shadow-md">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <span className="text-[10px] uppercase tracking-widest text-[#C5A059] font-bold">
+                    📺 Apresentação de {selBarb.name}:
+                  </span>
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setVideoPiPMode('floating')}
+                      className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${
+                        videoPiPMode === 'floating'
+                          ? 'bg-[#C5A059] text-black shadow'
+                          : 'bg-[#121212] text-[#888] hover:text-white border border-[#222]'
+                      }`}
+                    >
+                      Card Solto
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setVideoPiPMode('background')}
+                      className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${
+                        videoPiPMode === 'background'
+                          ? 'bg-[#C5A059] text-black shadow'
+                          : 'bg-[#121212] text-[#888] hover:text-white border border-[#222]'
+                      }`}
+                    >
+                      Ao Fundo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setVideoPiPMode('hidden')}
+                      className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${
+                        videoPiPMode === 'hidden'
+                          ? 'bg-red-950/40 text-red-400 border border-red-900/30'
+                          : 'bg-[#121212] text-[#888] hover:text-white border border-[#222]'
+                      }`}
+                    >
+                      Ocultar
+                    </button>
+                  </div>
+                </div>
+                
+                {videoPiPMode === 'background' && (
+                  <div className="flex items-center justify-between pt-2 border-t border-[#222] text-[10px]">
+                    <span className="text-[#666] uppercase tracking-wider">Opacidade ao fundo:</span>
+                    <div className="flex items-center gap-2">
+                      <button 
+                        type="button"
+                        onClick={() => setBgOpacity(Math.max(0.02, bgOpacity - 0.04))} 
+                        className="w-6 h-6 bg-[#121212] rounded border border-[#222] flex items-center justify-center text-xs font-bold text-white hover:bg-[#222] transition-colors"
+                      >
+                        -
+                      </button>
+                      <span className="font-mono text-[#C5A059] text-xs font-bold min-w-[28px] text-center">{Math.round(bgOpacity * 100)}%</span>
+                      <button 
+                        type="button"
+                        onClick={() => setBgOpacity(Math.min(0.25, bgOpacity + 0.04))} 
+                        className="w-6 h-6 bg-[#121212] rounded border border-[#222] flex items-center justify-center text-xs font-bold text-white hover:bg-[#222] transition-colors"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()
         )}
 
         {/* Step 1: Services */}
@@ -333,6 +499,9 @@ export default function ClientBooking() {
                 const selBarb = state.barbers.find(x => x.id === selectedBarber);
                 if (!selBarb || !selBarb.mediaUrl) return null;
                 
+                const embedUrl = getEmbedUrl(selBarb.mediaUrl);
+                const isIframeVideo = embedUrl.includes('youtube.com') || embedUrl.includes('youtu.be') || embedUrl.includes('player.vimeo.com');
+
                 return (
                   <div className="mt-6 p-4 bg-[#1A1A1A] border border-[#222] rounded-2xl animate-in fade-in zoom-in-95 duration-300">
                     <h3 className="text-xs uppercase tracking-widest text-[#C5A059] font-bold mb-3 text-center">
@@ -341,17 +510,9 @@ export default function ClientBooking() {
                     
                     <div className="w-full aspect-square max-w-[280px] mx-auto bg-[#121212] rounded-xl overflow-hidden border border-[#333] relative flex items-center justify-center shadow-lg">
                       {selBarb.mediaType === 'video' ? (
-                        selBarb.mediaUrl.includes('youtube.com') || selBarb.mediaUrl.includes('youtu.be') || selBarb.mediaUrl.includes('vimeo.com') ? (
+                        isIframeVideo ? (
                           <iframe
-                            src={
-                              selBarb.mediaUrl.includes('youtube.com/embed')
-                                ? selBarb.mediaUrl
-                                : selBarb.mediaUrl.includes('youtube.com/watch')
-                                ? selBarb.mediaUrl.replace('watch?v=', 'embed/')
-                                : selBarb.mediaUrl.includes('youtu.be/')
-                                ? `https://www.youtube.com/embed/${selBarb.mediaUrl.split('youtu.be/')[1]}`
-                                : selBarb.mediaUrl
-                            }
+                            src={embedUrl}
                             className="w-full h-full border-0 absolute inset-0"
                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                             allowFullScreen
@@ -573,6 +734,87 @@ export default function ClientBooking() {
           </div>
         )}
       </div>
+
+      {/* Floating mini TV player (Card Voando / Picture-in-Picture) */}
+      {selectedBarber && (step === 3 || step === 4) && videoPiPMode === 'floating' && (
+        (() => {
+          const selBarb = state.barbers.find(x => x.id === selectedBarber);
+          if (!selBarb || !selBarb.mediaUrl || selBarb.mediaType !== 'video') return null;
+
+          const embedUrl = getEmbedUrl(selBarb.mediaUrl);
+          const isIframeVideo = embedUrl.includes('youtube.com') || embedUrl.includes('youtu.be') || embedUrl.includes('player.vimeo.com');
+
+          return (
+            <div className="fixed bottom-4 sm:bottom-6 right-4 sm:right-6 z-40 w-48 sm:w-56 bg-[#121212]/95 backdrop-blur border border-[#C5A059]/40 p-2 sm:p-3 rounded-2xl shadow-[0_8px_32px_rgba(197,160,89,0.3)] animate-in slide-in-from-bottom-5 duration-500 overflow-hidden max-w-[90vw]">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] font-bold text-[#C5A059] uppercase tracking-widest truncate max-w-[110px] sm:max-w-[140px]">
+                  🎬 {selBarb.name}
+                </span>
+                <div className="flex items-center gap-1.5">
+                  {/* Toggle to background mode */}
+                  <button 
+                    type="button"
+                    onClick={() => setVideoPiPMode('background')}
+                    className="p-1 rounded bg-[#1A1A1A] border border-[#333] text-[#C5A059] hover:bg-[#222] hover:text-white transition-colors" 
+                    title="Colocar no Fundo"
+                  >
+                    <span className="text-[9px] uppercase tracking-wider font-extrabold block leading-none px-1">Fundo</span>
+                  </button>
+                  {/* Close/Hide Button */}
+                  <button 
+                    type="button"
+                    onClick={() => setVideoPiPMode('hidden')}
+                    className="p-1 h-5 w-5 rounded bg-red-950/60 text-red-400 hover:bg-red-900 border border-red-900/30 hover:text-white flex items-center justify-center transition-colors text-[9px] font-bold" 
+                    title="Minimizar"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+              
+              <div className="aspect-video w-full bg-[#0A0A0A] rounded-lg overflow-hidden relative border border-[#222]">
+                {selBarb.mediaType === 'video' ? (
+                  isIframeVideo ? (
+                    <iframe
+                      src={`${embedUrl}${embedUrl.includes('?') ? '&' : '?'}controls=0&modestbranding=1&autoplay=1&mute=1&loop=1`}
+                      className="w-full h-full border-0 absolute inset-0 pointer-events-none scale-105"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    />
+                  ) : (
+                    <video
+                      src={selBarb.mediaUrl}
+                      autoPlay
+                      muted
+                      loop
+                      playsInline
+                      controls={false}
+                      className="w-full h-full object-cover absolute inset-0"
+                    />
+                  )
+                ) : (
+                  <img
+                    src={selBarb.mediaUrl}
+                    alt={selBarb.name}
+                    className="w-full h-full object-cover absolute inset-0"
+                    referrerPolicy="no-referrer"
+                  />
+                )}
+              </div>
+              
+              <div className="flex justify-between items-center mt-2 pt-1 border-t border-[#222] text-[9px] text-[#777] font-semibold">
+                <span>Reproduzindo Mudo</span>
+                <button
+                  type="button"
+                  onClick={() => setVideoPiPMode('background')}
+                  className="text-[#C5A059] hover:underline hover:text-white uppercase tracking-wider"
+                >
+                  Modo Cheio
+                </button>
+              </div>
+            </div>
+          );
+        })()
+      )}
 
       <a href="/admin" className="mt-8 text-xs font-bold uppercase tracking-widest text-[#555] hover:text-[#C5A059] transition-colors flex items-center gap-2 bg-[#121212] border border-[#222] px-4 py-2 rounded-full">
         <User size={14} /> Acesso Restrito
