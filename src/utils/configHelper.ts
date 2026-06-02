@@ -51,7 +51,38 @@ export async function loadConfig(barbeariaId: string): Promise<ConfigType> {
     console.warn("API config load failed, using fallbacks", err);
   }
 
-  // 3. Dynamic Supabase schema probe (in case they have added column logo_url, work_start etc. in Supabase)
+  // 3. Try to load config from special row in barbeiros table (accessible publicly)
+  try {
+    const { data: bData, error: bError } = await supabase
+      .from('barbeiros')
+      .select('telefone')
+      .eq('nome', '__SYSTEM_CONFIG__')
+      .eq('barbearia_id', barbeariaId)
+      .maybeSingle();
+
+    if (bData && !bError && bData.telefone) {
+      try {
+        const parsed = JSON.parse(bData.telefone);
+        const loaded: ConfigType = {
+          workStart: parsed.workStart || defaultMin.workStart,
+          workEnd: parsed.workEnd || defaultMin.workEnd,
+          lunchStart: parsed.lunchStart || defaultMin.lunchStart,
+          lunchEnd: parsed.lunchEnd || defaultMin.lunchEnd,
+          logoUrl: parsed.logoUrl || defaultMin.logoUrl
+        };
+        try {
+          localStorage.setItem(`config_${barbeariaId}`, JSON.stringify(loaded));
+        } catch (e) {}
+        return loaded;
+      } catch (parseError) {
+        console.error("Failed to parse config from barbeiro row JSON:", parseError);
+      }
+    }
+  } catch (supabaseErr) {
+    console.warn("Supabase configuration from barbeiros row load skipped/failed:", supabaseErr);
+  }
+
+  // 4. Dynamic Supabase schema probe as a final legacy fallback
   try {
     const { data, error } = await supabase
       .from('barbearias')
@@ -129,48 +160,85 @@ export async function saveConfig(barbeariaId: string, config: ConfigType): Promi
     errorMsg = err.message || "Network Error";
   }
 
-  // 2. Try updating columns on barbearias in Supabase dynamically
+  // 2. Try saving inside barbeiros table under '__SYSTEM_CONFIG__' (Accessible via Row Level Security & writable by admin)
   try {
-    // Attempt updating using snake_case properties
-    const { error: error1 } = await supabase
-      .from('barbearias')
-      .update({
-        logo_url: config.logoUrl,
-        work_start: config.workStart,
-        lunch_start: config.lunchStart,
-        lunch_end: config.lunchEnd,
-        work_end: config.workEnd
-      } as any)
-      .eq('id', barbeariaId);
+    const configString = JSON.stringify(config);
+    const { data: existing, error: findError } = await supabase
+      .from('barbeiros')
+      .select('id')
+      .eq('nome', '__SYSTEM_CONFIG__')
+      .eq('barbearia_id', barbeariaId)
+      .maybeSingle();
 
-    if (!error1) {
-      supabaseSuccess = true;
+    if (!findError) {
+      if (existing) {
+        const { error: updateError } = await supabase
+          .from('barbeiros')
+          .update({
+            telefone: configString,
+            ativo: true
+          })
+          .eq('id', existing.id);
+
+        if (!updateError) {
+          supabaseSuccess = true;
+        } else {
+          console.error("Error updating config in barbeiros table:", updateError);
+          errorMsg = updateError.message;
+        }
+      } else {
+        const { error: insertError } = await supabase
+          .from('barbeiros')
+          .insert({
+            barbearia_id: barbeariaId,
+            nome: '__SYSTEM_CONFIG__',
+            telefone: configString,
+            ativo: true
+          });
+
+        if (!insertError) {
+          supabaseSuccess = true;
+        } else {
+          console.error("Error inserting config in barbeiros table:", insertError);
+          errorMsg = insertError.message;
+        }
+      }
     } else {
-      // Attempt updating using camelCase properties
-      const { error: error2 } = await supabase
+      console.error("Error finding existing config in barbeiros:", findError);
+      errorMsg = findError.message;
+    }
+  } catch (supabaseErr: any) {
+    console.warn("Supabase barbeiros fallback save bypassed/failed:", supabaseErr);
+    errorMsg = supabaseErr.message || String(supabaseErr);
+  }
+
+  // 3. Standby try updating columns on barbearias in Supabase dynamically (legacy fallback)
+  if (!supabaseSuccess) {
+    try {
+      const { error: error1 } = await supabase
         .from('barbearias')
         .update({
-          logoUrl: config.logoUrl,
-          workStart: config.workStart,
-          lunchStart: config.lunchStart,
-          lunchEnd: config.lunchEnd,
-          workEnd: config.workEnd
+          logo_url: config.logoUrl,
+          work_start: config.workStart,
+          lunch_start: config.lunchStart,
+          lunch_end: config.lunchEnd,
+          work_end: config.workEnd
         } as any)
         .eq('id', barbeariaId);
 
-      if (!error2) {
+      if (!error1) {
         supabaseSuccess = true;
       }
-    }
-  } catch (supabaseErr) {
-    console.warn("Supabase columns update bypassed:", supabaseErr);
+    } catch (supabaseErr) {}
   }
 
-  // If we couldn't persist on the server (Vercel static) and couldn't write to Supabase (missing columns),
-  // we still return success: true because it is safely cached in localStorage on their device!
+  // We return success: true as long as we succeeded either in API, Supabase, or at least in local device memory cache
   if (apiSuccess || supabaseSuccess) {
     return { success: true, isLocal: false };
   } else {
+    // If it is stored locally in client's localstorage we still report success so UI stays robust,
+    // but tell them isLocal so they understand it fallback-saved.
     return { success: true, isLocal: true, error: errorMsg };
   }
 }
+

@@ -131,7 +131,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setState(prev => ({
         ...prev,
         services: (servicos || []).map(mapService),
-        barbers: (barbeiros || []).map(mapBarber),
+        barbers: (barbeiros || []).filter(b => b.nome !== '__SYSTEM_CONFIG__').map(mapBarber),
         clients: (clientes || []).map(mapClient),
         appointments: (agendamentos || []).map(mapAppointment),
         products: (produtos || []).map(mapProduct),
@@ -363,6 +363,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const channelBarbeiros = supabase.channel(`realtime-barbeiros-${barbearia.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'barbeiros', filter: `barbearia_id=eq.${barbearia.id}` }, (payload: any) => {
+         if (payload.new && payload.new.nome === '__SYSTEM_CONFIG__') {
+            return; // Ignore system config updates
+         }
          if (payload.eventType === 'INSERT') {
             setState(prev => {
                if (prev.barbers.some(b => b.id === payload.new.id)) {
