@@ -408,7 +408,7 @@ export default function AdminAgenda() {
           className="bg-transparent border border-[#C5A059] text-[#C5A059] font-bold px-4 py-2.5 rounded-xl text-xs uppercase tracking-widest hover:bg-[#C5A05911] flex items-center justify-center gap-2 transition-all self-start md:self-center"
         >
           <Plus size={16} />
-          Agendamento Manual (Walk-in / Telefone)
+          Agendamento Manual 
         </button>
       </div>
 
