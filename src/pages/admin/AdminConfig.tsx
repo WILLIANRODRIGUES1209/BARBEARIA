@@ -6,6 +6,7 @@ import { Service } from '../../types';
 import toast from 'react-hot-toast';
 
 import { confirmUI } from '../../utils/confirmUI';
+import { loadConfig, saveConfig } from '../../utils/configHelper';
 
 export default function AdminConfig() {
   const { state, addService, editService, deleteService, clearTestData } = useAppContext();
@@ -26,23 +27,13 @@ export default function AdminConfig() {
 
   React.useEffect(() => {
     if (barbearia?.id) {
-      fetch(`/api/config?barbeariaId=${barbearia.id}`)
-        .then(async res => {
-          const text = await res.text();
-          try {
-            return JSON.parse(text);
-          } catch (e) {
-            throw new Error(`Resposta inválida (Código: ${res.status}): ${text.substring(0, 100)}`);
-          }
-        })
+      loadConfig(barbearia.id)
         .then(data => {
-          if (data) {
-            setWorkStart(data.workStart || "08:00");
-            setLunchStart(data.lunchStart || "12:00");
-            setLunchEnd(data.lunchEnd || "13:00");
-            setWorkEnd(data.workEnd || "19:00");
-            setLogoUrl(data.logoUrl || "");
-          }
+          setWorkStart(data.workStart);
+          setLunchStart(data.lunchStart);
+          setLunchEnd(data.lunchEnd);
+          setWorkEnd(data.workEnd);
+          setLogoUrl(data.logoUrl);
         })
         .catch(err => console.error("Error fetching config:", err));
     }
@@ -54,31 +45,22 @@ export default function AdminConfig() {
 
     setIsSavingConfig(true);
     try {
-      const res = await fetch("/api/config", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          barbeariaId: barbearia.id,
-          workStart,
-          lunchStart,
-          lunchEnd,
-          workEnd,
-          logoUrl
-        })
+      const result = await saveConfig(barbearia.id, {
+        workStart,
+        lunchStart,
+        lunchEnd,
+        workEnd,
+        logoUrl
       });
-      const text = await res.text();
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch (parseErr) {
-        console.error("Failed to parse JSON response:", text);
-        throw new Error(`Resposta do servidor não pôde ser lida como JSON (Código: ${res.status}). Retorno: ${text.substring(0, 120)}`);
-      }
-
-      if (res.ok && data.success) {
-        toast.success("Configurações salvas com sucesso!");
+      
+      if (result.success) {
+        if (result.isLocal) {
+          toast.success("Configurações salvas localmente com sucesso! (Hospedagem estática detectada)");
+        } else {
+          toast.success("Configurações salvas com sucesso!");
+        }
       } else {
-        toast.error("Erro ao salvar configurações: " + (data.error || "Erro desconhecido"));
+        toast.error("Erro ao salvar configurações: " + (result.error || "Erro desconhecido"));
       }
     } catch (err: any) {
       console.error(err);

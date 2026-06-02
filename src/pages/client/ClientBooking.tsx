@@ -6,6 +6,7 @@ import { useParams } from 'react-router-dom';
 import { Scissors, Calendar, Clock, CheckCircle2, User, Users, ChevronLeft } from 'lucide-react';
 import { addDays, format, isSameDay, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { loadConfig } from '../../utils/configHelper';
 
 export default function ClientBooking() {
   const { state, addAppointment } = useAppContext();
@@ -34,18 +35,15 @@ export default function ClientBooking() {
 
   useEffect(() => {
     if (barbearia?.id) {
-      fetch(`/api/config?barbeariaId=${barbearia.id}`)
-        .then(res => res.json())
+      loadConfig(barbearia.id)
         .then(data => {
-          if (data) {
-            setConfig({
-              workStart: data.workStart || "08:00",
-              lunchStart: data.lunchStart || "12:00",
-              lunchEnd: data.lunchEnd || "13:00",
-              workEnd: data.workEnd || "19:00",
-              logoUrl: data.logoUrl || ""
-            });
-          }
+          setConfig({
+            workStart: data.workStart,
+            lunchStart: data.lunchStart,
+            lunchEnd: data.lunchEnd,
+            workEnd: data.workEnd,
+            logoUrl: data.logoUrl
+          });
         })
         .catch(err => console.error("Error fetching config:", err));
     }

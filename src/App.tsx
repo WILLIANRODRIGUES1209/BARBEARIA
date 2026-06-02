@@ -24,6 +24,7 @@ import WelcomeDashboard from './pages/admin/WelcomeDashboard';
 import InstallPrompt from './components/InstallPrompt';
 import NotificationPrompt from './components/NotificationPrompt';
 import { Toaster, ToastBar, toast } from 'react-hot-toast';
+import { loadConfig } from './utils/configHelper';
 
 const AdminLayout = ({ children, onLogout, authState }: { children: React.ReactNode, onLogout: () => void, authState: any }) => {
   const location = useLocation();
@@ -33,8 +34,7 @@ const AdminLayout = ({ children, onLogout, authState }: { children: React.ReactN
 
   useEffect(() => {
     if (barbearia?.id) {
-      fetch(`/api/config?barbeariaId=${barbearia.id}`)
-        .then(res => res.json())
+      loadConfig(barbearia.id)
         .then(data => {
           if (data && data.logoUrl) {
             setLogoUrl(data.logoUrl);

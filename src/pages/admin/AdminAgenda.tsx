@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { Appointment } from '../../types';
 import toast from 'react-hot-toast';
+import { loadConfig } from '../../utils/configHelper';
 
 const WEEKDAYS = ["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"];
 
@@ -36,17 +37,14 @@ export default function AdminAgenda() {
 
   React.useEffect(() => {
     if (barbearia?.id) {
-      fetch(`/api/config?barbeariaId=${barbearia.id}`)
-        .then(res => res.json())
+      loadConfig(barbearia.id)
         .then(data => {
-          if (data) {
-            setConfig({
-              workStart: data.workStart || "08:00",
-              lunchStart: data.lunchStart || "12:00",
-              lunchEnd: data.lunchEnd || "13:00",
-              workEnd: data.workEnd || "19:00"
-            });
-          }
+          setConfig({
+            workStart: data.workStart,
+            lunchStart: data.lunchStart,
+            lunchEnd: data.lunchEnd,
+            workEnd: data.workEnd
+          });
         })
         .catch(err => console.error("Error fetching admin config:", err));
     }
