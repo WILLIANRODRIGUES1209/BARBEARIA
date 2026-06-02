@@ -14,6 +14,48 @@ export default function AdminBarbeiros() {
   const [newBarber, setNewBarber] = useState<Omit<Barber, 'id'>>({ name: '', phone: '', specialties: '', active: true, comissao: 50, pin: '', acesso: '', mediaUrl: '', mediaType: 'image' });
   const [editForm, setEditForm] = useState<Omit<Barber, 'id'>>({ name: '', phone: '', specialties: '', active: true, comissao: 50, pin: '', acesso: '', mediaUrl: '', mediaType: 'image' });
 
+  const [newSourceTab, setNewSourceTab] = useState<'upload' | 'url'>('upload');
+  const [editSourceTab, setEditSourceTab] = useState<'upload' | 'url'>('upload');
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, isEdit: boolean) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Limit size to ~10MB for smooth DB storage
+    if (file.size > 12 * 1024 * 1024) {
+      alert("O arquivo é muito grande! Escolha um vídeo ou imagem de no máximo 12MB para não comprometer a velocidade da página.");
+      return;
+    }
+
+    setIsUploading(true);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result as string;
+      const determinedType = file.type.startsWith('video/') ? 'video' : 'image';
+      
+      if (isEdit) {
+        setEditForm(prev => ({
+          ...prev,
+          mediaUrl: result,
+          mediaType: determinedType
+        }));
+      } else {
+        setNewBarber(prev => ({
+          ...prev,
+          mediaUrl: result,
+          mediaType: determinedType
+        }));
+      }
+      setIsUploading(false);
+    };
+    reader.onerror = () => {
+      alert("Erro ao processar o arquivo.");
+      setIsUploading(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newBarber.name) return;
@@ -114,27 +156,122 @@ export default function AdminBarbeiros() {
               className="w-full px-4 py-3 bg-[#1A1A1A] border border-[#333] text-white rounded focus:border-[#C5A059] focus:outline-none transition-colors"
             />
           </div>
-          <div>
-            <label className="block text-xs uppercase tracking-[0.1em] text-[#555] font-medium mb-2">Aparição (Tipo de Mídia)</label>
-            <select
-              value={newBarber.mediaType || 'image'}
-              onChange={e => setNewBarber({...newBarber, mediaType: e.target.value as 'image' | 'video'})}
-              className="w-full px-4 py-3 bg-[#1A1A1A] border border-[#333] text-white rounded focus:border-[#C5A059] focus:outline-none transition-colors"
-            >
-              <option value="image">Foto (Imagem)</option>
-              <option value="video">Vídeo (MP4/YouTube/Vimeo)</option>
-            </select>
-          </div>
-          <div className="md:col-span-2">
-            <label className="block text-xs uppercase tracking-[0.1em] text-[#555] font-medium mb-2">Link da Foto ou Vídeo de Apresentação</label>
-            <input 
-              type="text" 
-              placeholder="Ex: https://imgur.com/link_da_foto.png ou link_do_video_mp4"
-              value={newBarber.mediaUrl || ''}
-              onChange={e => setNewBarber({...newBarber, mediaUrl: e.target.value})}
-              className="w-full px-4 py-3 bg-[#1A1A1A] border border-[#333] text-white rounded focus:border-[#C5A059] focus:outline-none transition-colors"
-            />
-            <p className="text-[10px] text-[#555] mt-1">Insira um link direto de imagem quadrada/vídeo curto ou link completo para exibição no ato de agendar.</p>
+          <div className="md:col-span-2 space-y-4">
+            <div className="flex border-b border-[#222]">
+              <button
+                type="button"
+                onClick={() => setNewSourceTab('upload')}
+                className={`px-4 py-2 text-xs uppercase tracking-wider font-bold transition-all border-b-2 ${
+                  newSourceTab === 'upload'
+                    ? 'border-[#C5A059] text-[#C5A059]'
+                    : 'border-transparent text-[#555] hover:text-white'
+                }`}
+              >
+                📁 Enviar Arquivo (Recomendado)
+              </button>
+              <button
+                type="button"
+                onClick={() => setNewSourceTab('url')}
+                className={`px-4 py-2 text-xs uppercase tracking-wider font-bold transition-all border-b-2 ${
+                  newSourceTab === 'url'
+                    ? 'border-[#C5A059] text-[#C5A059]'
+                    : 'border-transparent text-[#555] hover:text-white'
+                }`}
+              >
+                🔗 Inserir Link da Internet
+              </button>
+            </div>
+
+            {newSourceTab === 'upload' ? (
+              <div className="space-y-3">
+                <div className="flex flex-col items-center justify-center border-2 border-dashed border-[#333] hover:border-[#C5A059] bg-[#121212] rounded-xl p-6 transition-all relative">
+                  <input
+                    type="file"
+                    accept="image/*,video/mp4,video/quicktime,video/webm"
+                    onChange={(e) => handleFileChange(e, false)}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    disabled={isUploading}
+                  />
+                  
+                  {isUploading ? (
+                    <div className="text-center py-4">
+                      <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-[#C5A059] mx-auto mb-2"></div>
+                      <p className="text-xs text-[#777] uppercase tracking-wider">Processando e compactando arquivo...</p>
+                    </div>
+                  ) : (
+                    <div className="text-center">
+                      <Plus className="mx-auto text-[#C5A059] mb-2" size={24} />
+                      <p className="text-xs text-white font-bold uppercase tracking-wider">Escolha uma Foto ou Vídeo MP4</p>
+                      <p className="text-[10px] text-[#555] mt-1">Arraste ou clique para selecionar. Tamanho limite: 12MB.</p>
+                    </div>
+                  )}
+                </div>
+
+                {newBarber.mediaUrl && (
+                  <div className="p-4 bg-[#1A1A1A] border border-[#222] rounded-xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] uppercase font-bold text-[#C5A059] tracking-widest">
+                        Visualização da Mídia do Barbeiro:
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setNewBarber(prev => ({ ...prev, mediaUrl: '', mediaType: 'image' }))}
+                        className="text-[9px] uppercase tracking-wider font-bold text-red-400 bg-red-950/40 border border-red-900/30 px-2 py-1 rounded"
+                      >
+                        Remover Arquivo
+                      </button>
+                    </div>
+
+                    <div className="w-48 aspect-square bg-[#0C0C0C] rounded-lg overflow-hidden border border-[#333] flex items-center justify-center mx-auto">
+                      {newBarber.mediaType === 'video' ? (
+                        <video
+                          src={newBarber.mediaUrl}
+                          controls
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <img
+                          src={newBarber.mediaUrl}
+                          alt="Preview"
+                          className="w-full h-full object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+                      )}
+                    </div>
+                    <div className="text-center text-[10px] text-[#555]">
+                      Mídia selecionada: {newBarber.mediaType === 'video' ? 'Vídeo MP4' : 'Foto/Imagem'} salva em base64.
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-[0.1em] text-[#555] font-medium mb-2">Tipo de Mídia do Link</label>
+                    <select
+                      value={newBarber.mediaType || 'image'}
+                      onChange={e => setNewBarber({...newBarber, mediaType: e.target.value as 'image' | 'video'})}
+                      className="w-full px-4 py-2.5 bg-[#1A1A1A] border border-[#333] text-white rounded text-xs focus:border-[#C5A059] focus:outline-none"
+                    >
+                      <option value="image">Foto (Imagem)</option>
+                      <option value="video">Vídeo (YouTube / Vimeo / MP4)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-[0.1em] text-[#555] font-medium mb-2">Endereço URL (Link)</label>
+                    <input 
+                      type="text" 
+                      placeholder="Ex: https://dominio.com/video.mp4"
+                      value={newBarber.mediaUrl || ''}
+                      onChange={e => setNewBarber({...newBarber, mediaUrl: e.target.value})}
+                      className="w-full px-4 py-2.5 bg-[#1A1A1A] border border-[#333] text-white rounded text-xs focus:border-[#C5A059] focus:outline-none"
+                    />
+                  </div>
+                </div>
+                <p className="text-[10px] text-[#555]">Utilize links da web como imagens hospedadas ou links do YouTube/Vimeo se possuir vídeos pesados.</p>
+              </div>
+            )}
           </div>
           <div className="md:col-span-2 flex justify-end">
             <button type="submit" className="bg-[#C5A059] text-[#0A0A0A] font-bold text-xs uppercase tracking-widest px-6 py-3 rounded hover:bg-[#8E6D31] transition-colors">
@@ -202,21 +339,74 @@ export default function AdminBarbeiros() {
                       />
                       <div className="pt-2 border-t border-[#222] space-y-1">
                         <label className="block text-[10px] uppercase text-[#555]">Mídia de Apresentação</label>
-                        <select
-                          value={editForm.mediaType || 'image'}
-                          onChange={e => setEditForm({...editForm, mediaType: e.target.value as 'image' | 'video'})}
-                          className="w-full bg-[#1A1A1A] border border-[#333] text-white text-xs rounded focus:border-[#C5A059] focus:outline-none px-2 py-1"
-                        >
-                          <option value="image">Mídia: Foto (Imagem)</option>
-                          <option value="video">Mídia: Vídeo</option>
-                        </select>
-                        <input 
-                          type="text" 
-                          value={editForm.mediaUrl || ''}
-                          placeholder="Link da foto/vídeo"
-                          onChange={e => setEditForm({...editForm, mediaUrl: e.target.value})}
-                          className="w-full px-2 py-1 bg-[#1A1A1A] border border-[#333] text-white text-xs rounded focus:border-[#C5A059] focus:outline-none"
-                        />
+                        
+                        <div className="flex border-b border-[#222] my-1">
+                          <button
+                            type="button"
+                            onClick={() => setEditSourceTab('upload')}
+                            className={`flex-1 text-center py-1 text-[9px] uppercase font-bold transition-all ${
+                              editSourceTab === 'upload' ? 'text-[#C5A059] border-b border-[#C5A059]' : 'text-[#555]'
+                            }`}
+                          >
+                            Enviar Arquivo
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditSourceTab('url')}
+                            className={`flex-1 text-center py-1 text-[9px] uppercase font-bold transition-all ${
+                              editSourceTab === 'url' ? 'text-[#C5A059] border-b border-[#C5A059]' : 'text-[#555]'
+                            }`}
+                          >
+                            Link URL
+                          </button>
+                        </div>
+
+                        {editSourceTab === 'upload' ? (
+                          <div className="space-y-1">
+                            <div className="relative border border-dashed border-[#444] hover:border-[#C5A059] bg-[#0E0E0E] rounded p-2 text-center transition-all cursor-pointer">
+                              <input
+                                type="file"
+                                accept="image/*,video/mp4,video/quicktime,video/webm"
+                                onChange={(e) => handleFileChange(e, true)}
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                disabled={isUploading}
+                              />
+                              <span className="text-[9px] text-[#C5A059] font-bold block">
+                                {isUploading ? 'Processando...' : '📁 Escolher Vídeo/Foto'}
+                              </span>
+                            </div>
+                            {editForm.mediaUrl && (
+                              <div className="flex items-center justify-between text-[9px] text-[#555] bg-[#0A0A0A] p-1.5 rounded border border-[#222] mt-1">
+                                <span className="truncate max-w-[120px] text-green-400">✓ {editForm.mediaType === 'video' ? 'Vídeo Carregado' : 'Foto Carregada'}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => setEditForm(prev => ({ ...prev, mediaUrl: '', mediaType: 'image' }))}
+                                  className="text-red-400 hover:underline font-bold"
+                                >
+                                  Remover
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="space-y-1">
+                            <select
+                              value={editForm.mediaType || 'image'}
+                              onChange={e => setEditForm({...editForm, mediaType: e.target.value as 'image' | 'video'})}
+                              className="w-full bg-[#1A1A1A] border border-[#333] text-white text-xs rounded focus:border-[#C5A059] focus:outline-none px-2 py-1"
+                            >
+                              <option value="image">Mídia: Foto (Imagem)</option>
+                              <option value="video">Mídia: Vídeo</option>
+                            </select>
+                            <input 
+                              type="text" 
+                              value={editForm.mediaUrl || ''}
+                              placeholder="Link da foto/vídeo"
+                              onChange={e => setEditForm({...editForm, mediaUrl: e.target.value})}
+                              className="w-full px-2 py-1 bg-[#1A1A1A] border border-[#333] text-white text-xs rounded focus:border-[#C5A059] focus:outline-none"
+                            />
+                          </div>
+                        )}
                       </div>
                     </div>
                   ) : (

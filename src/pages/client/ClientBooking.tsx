@@ -478,9 +478,17 @@ export default function ClientBooking() {
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-[#222] rounded-full flex items-center justify-center text-[#777] overflow-hidden">
-                      {b.mediaUrl && b.mediaType === 'image' ? (
-                        <img src={b.mediaUrl} alt={b.name} className="w-full h-full object-cover" />
+                    <div className="w-12 h-12 bg-[#222] rounded-full flex items-center justify-center text-[#777] overflow-hidden relative border border-[#333]">
+                      {b.mediaUrl ? (
+                        b.mediaType === 'video' ? (
+                          b.mediaUrl.startsWith('data:') ? (
+                            <video src={b.mediaUrl} muted autoPlay loop playsInline className="w-full h-full object-cover pointer-events-none" />
+                          ) : (
+                            <div className="w-full h-full bg-[#C5A059] flex items-center justify-center text-[#0A0A0A] font-bold text-xs">▶</div>
+                          )
+                        ) : (
+                          <img src={b.mediaUrl} alt={b.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        )
                       ) : (
                         <User size={24} />
                       )}
