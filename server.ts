@@ -486,6 +486,53 @@ async function startServer() {
     }
   });
 
+  const CONFIG_FILE = path.join(process.cwd(), 'barbearia_configs.json');
+
+  const loadConfigs = () => {
+    try {
+      if (fs.existsSync(CONFIG_FILE)) {
+        return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
+      }
+    } catch (e) {
+      console.error('Error loading configs', e);
+    }
+    return {};
+  };
+
+  const saveConfigs = (configs: any) => {
+    try {
+      fs.writeFileSync(CONFIG_FILE, JSON.stringify(configs, null, 2));
+    } catch (e) {
+      console.error('Error saving configs', e);
+    }
+  };
+
+  app.get("/api/config", (req, res) => {
+    const barbeariaId = req.query.barbeariaId as string || "default";
+    const configs = loadConfigs();
+    const config = configs[barbeariaId] || {
+      lunchStart: "12:00",
+      lunchEnd: "13:00",
+      workEnd: "19:00",
+      workStart: "08:00"
+    };
+    res.json(config);
+  });
+
+  app.post("/api/config", (req, res) => {
+    const { barbeariaId, lunchStart, lunchEnd, workEnd, workStart } = req.body;
+    const bid = barbeariaId || "default";
+    const configs = loadConfigs();
+    configs[bid] = {
+      lunchStart: lunchStart || "12:00",
+      lunchEnd: lunchEnd || "13:00",
+      workEnd: workEnd || "19:00",
+      workStart: workStart || "08:00"
+    };
+    saveConfigs(configs);
+    res.status(200).json({ success: true, config: configs[bid] });
+  });
+
   // Check if --host flag is passed
   const isHost = process.argv.includes('--host');
 

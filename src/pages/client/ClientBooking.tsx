@@ -18,12 +18,36 @@ export default function ClientBooking() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [clientInfo, setClientInfo] = useState({ name: '', phone: '' });
+  const [config, setConfig] = useState({
+    workStart: "08:00",
+    lunchStart: "12:00",
+    lunchEnd: "13:00",
+    workEnd: "19:00"
+  });
 
   useEffect(() => {
     if (slug) {
       fetchBySlug(slug);
     }
   }, [slug]);
+
+  useEffect(() => {
+    if (barbearia?.id) {
+      fetch(`/api/config?barbeariaId=${barbearia.id}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data) {
+            setConfig({
+              workStart: data.workStart || "08:00",
+              lunchStart: data.lunchStart || "12:00",
+              lunchEnd: data.lunchEnd || "13:00",
+              workEnd: data.workEnd || "19:00"
+            });
+          }
+        })
+        .catch(err => console.error("Error fetching config:", err));
+    }
+  }, [barbearia?.id, slug]);
 
   // Se não tem barbearia carregada e tem slug, estamos carregando
   if (slug && !barbearia) {
@@ -66,15 +90,16 @@ export default function ClientBooking() {
     const selectedServiceDuration = service ? service.durationMinutes : 30;
     const slotEnd = slotStart + selectedServiceDuration;
     
-    // Check shift boundaries:
-    // Morning shift: 08:00 - 12:00
-    // Afternoon shift: 13:00 - 19:00
-    const isMorning = slotStart >= 8 * 60 && slotStart < 12 * 60;
-    const isAfternoon = slotStart >= 13 * 60 && slotStart < 19 * 60;
+    // Check shift boundaries using dynamic config:
+    const startMin = timeToMinutes(config.workStart);
+    const lunchStartMin = timeToMinutes(config.lunchStart);
+    const lunchEndMin = timeToMinutes(config.lunchEnd);
+    const endMin = timeToMinutes(config.workEnd);
     
-    if (isMorning && slotEnd > 12 * 60) return true; // Overlaps with lunch
-    if (isAfternoon && slotEnd > 19 * 60) return true; // Overlaps after hours
-    if (!isMorning && !isAfternoon) return true; // Not in working hours
+    if (slotStart < startMin || slotEnd > endMin) return true; // Outside custom work hours
+    
+    // Overlaps with lunch
+    if (slotStart < lunchEndMin && slotEnd > lunchStartMin) return true;
 
     const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
     const selectedDayOfWeek = selectedDate.getDay();
@@ -118,19 +143,20 @@ export default function ClientBooking() {
     });
   };
 
-  // Generate 15-minute slot times list
+  // Generate 15-minute slot times list using dynamic configs
   const baseTimes: string[] = [];
-  // Morning: 08:00 to 12:00
-  for (let h = 8; h < 12; h++) {
-    for (let m = 0; m < 60; m += 15) {
-      baseTimes.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+  const startMin = timeToMinutes(config.workStart);
+  const endMin = timeToMinutes(config.workEnd);
+  const lunchStartMin = timeToMinutes(config.lunchStart);
+  const lunchEndMin = timeToMinutes(config.lunchEnd);
+
+  for (let m = startMin; m < endMin; m += 15) {
+    if (m >= lunchStartMin && m < lunchEndMin) {
+      continue;
     }
-  }
-  // Afternoon: 13:00 to 19:00
-  for (let h = 13; h < 19; h++) {
-    for (let m = 0; m < 60; m += 15) {
-      baseTimes.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
-    }
+    const hr = Math.floor(m / 60);
+    const mn = m % 60;
+    baseTimes.push(`${String(hr).padStart(2, '0')}:${String(mn).padStart(2, '0')}`);
   }
 
   // Filter out past times for today

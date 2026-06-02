@@ -183,6 +183,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     };
 
+    const showNativeNotification = (title: string, body: string) => {
+      if (!('Notification' in window)) return;
+      if (Notification.permission !== 'granted') return;
+
+      const options = {
+        body,
+        icon: '/icon-192x192.png',
+        badge: '/icon-192x192.png',
+        vibrate: [200, 100, 200],
+        silent: false,
+        requireInteraction: false
+      };
+
+      try {
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.ready.then((reg) => {
+            reg.showNotification(title, options);
+          }).catch(() => {
+            new Notification(title, options);
+          });
+        } else {
+          new Notification(title, options);
+        }
+      } catch (err) {
+        console.warn('Native notification error:', err);
+        try {
+          new Notification(title, options);
+        } catch (_) {}
+      }
+    };
+
     const channelAgendamentos = supabase.channel(`realtime-agendamentos-${barbearia.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'agendamentos', filter: `barbearia_id=eq.${barbearia.id}` }, (payload: any) => {
           if (payload.eventType === 'INSERT') {
@@ -214,6 +245,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                  icon: '🚀'
                });
                playBeep();
+               setState(prev => {
+                 const sObj = prev.services.find(s => s.id === payload.new.servico_id);
+                 const sName = sObj ? sObj.name : 'Serviço';
+                 showNativeNotification(`🚀 Novo Agendamento!`, `Cliente: ${payload.new.cliente_nome}\nServiço: ${sName}`);
+                 return prev;
+               });
              }
           } else if (payload.eventType === 'UPDATE') {
              setState(prev => ({
@@ -226,6 +263,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                  duration: 6000
                });
                playBeep();
+               setState(prev => {
+                 const sObj = prev.services.find(s => s.id === payload.new.servico_id);
+                 const sName = sObj ? sObj.name : 'Serviço';
+                 showNativeNotification(`❌ Agendamento Cancelado`, `Cliente: ${payload.new.cliente_nome}\nServiço: ${sName}`);
+                 return prev;
+               });
              }
           } else if (payload.eventType === 'DELETE') {
              setState(prev => ({

@@ -1,18 +1,89 @@
 import React, { useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
-import { Plus, Edit2, Save, X, Settings, Trash2 } from 'lucide-react';
+import { useBarbearia } from '../../context/BarbeariaContext';
+import { Plus, Edit2, Save, X, Settings, Trash2, Clock } from 'lucide-react';
 import { Service } from '../../types';
+import toast from 'react-hot-toast';
 
 import { confirmUI } from '../../utils/confirmUI';
 
 export default function AdminConfig() {
   const { state, addService, editService, deleteService, clearTestData } = useAppContext();
+  const { barbearia } = useBarbearia();
   
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const [newService, setNewService] = useState({ name: '', durationMinutes: 30, price: 0 });
   const [editForm, setEditForm] = useState({ name: '', durationMinutes: 30, price: 0 });
+
+  const [lunchStart, setLunchStart] = useState("12:00");
+  const [lunchEnd, setLunchEnd] = useState("13:00");
+  const [workEnd, setWorkEnd] = useState("19:00");
+  const [workStart, setWorkStart] = useState("08:00");
+  const [isSavingConfig, setIsSavingConfig] = useState(false);
+
+  React.useEffect(() => {
+    if (barbearia?.id) {
+      fetch(`/api/config?barbeariaId=${barbearia.id}`)
+        .then(async res => {
+          const text = await res.text();
+          try {
+            return JSON.parse(text);
+          } catch (e) {
+            throw new Error(`Resposta inválida (Código: ${res.status}): ${text.substring(0, 100)}`);
+          }
+        })
+        .then(data => {
+          if (data) {
+            setWorkStart(data.workStart || "08:00");
+            setLunchStart(data.lunchStart || "12:00");
+            setLunchEnd(data.lunchEnd || "13:00");
+            setWorkEnd(data.workEnd || "19:00");
+          }
+        })
+        .catch(err => console.error("Error fetching config:", err));
+    }
+  }, [barbearia?.id]);
+
+  const handleSaveConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!barbearia?.id) return;
+
+    setIsSavingConfig(true);
+    try {
+      const res = await fetch("/api/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          barbeariaId: barbearia.id,
+          workStart,
+          lunchStart,
+          lunchEnd,
+          workEnd
+        })
+      });
+      const text = await res.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (parseErr) {
+        console.error("Failed to parse JSON response:", text);
+        throw new Error(`Resposta do servidor não pôde ser lida como JSON (Código: ${res.status}). Retorno: ${text.substring(0, 120)}`);
+      }
+
+      if (res.ok && data.success) {
+        toast.success("Horários salvos com sucesso!");
+      } else {
+        toast.error("Erro ao salvar horários: " + (data.error || "Erro desconhecido"));
+      }
+    } catch (err: any) {
+      console.error(err);
+      toast.error("Erro ao salvar: " + err.message);
+    } finally {
+      setIsSavingConfig(false);
+    }
+  };
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -181,6 +252,72 @@ export default function AdminConfig() {
             Nenhum serviço cadastrado.
           </div>
         )}
+      </div>
+
+      {/* Configurações de Expediente e Almoço */}
+      <div className="bg-[#121212] rounded-2xl border border-[#222] p-6 mt-12 shadow-xl">
+        <h2 className="text-sm font-bold text-[#C5A059] uppercase tracking-widest mb-2 flex items-center gap-2">
+          <Clock size={16} /> Configurações de Expediente e Almoço
+        </h2>
+        <p className="text-xs text-[#777] mb-6 max-w-2xl">
+          Defina o início e fim do expediente da barbearia, bem como o período reservado para o almoço. Os horários disponíveis no painel de agendamento do cliente se ajustarão automaticamente.
+        </p>
+
+        <form onSubmit={handleSaveConfig} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+          <div>
+            <label className="block text-[10px] uppercase tracking-wider text-[#777] mb-1.5 font-medium">Início do Expediente</label>
+            <input 
+              type="text" 
+              value={workStart}
+              onChange={e => setWorkStart(e.target.value)}
+              placeholder="e.g. 08:00"
+              className="w-full px-4 py-3 bg-[#1A1A1A] border border-[#333] text-white rounded-xl focus:border-[#C5A059] focus:outline-none text-sm transition-all placeholder-[#555]"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[10px] uppercase tracking-wider text-[#777] mb-1.5 font-medium">Início do Almoço</label>
+            <input 
+              type="text" 
+              value={lunchStart}
+              onChange={e => setLunchStart(e.target.value)}
+              placeholder="e.g. 12:00"
+              className="w-full px-4 py-3 bg-[#1A1A1A] border border-[#333] text-white rounded-xl focus:border-[#C5A059] focus:outline-none text-sm transition-all placeholder-[#555]"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[10px] uppercase tracking-wider text-[#777] mb-1.5 font-medium">Fim do Almoço</label>
+            <input 
+              type="text" 
+              value={lunchEnd}
+              onChange={e => setLunchEnd(e.target.value)}
+              placeholder="e.g. 13:00"
+              className="w-full px-4 py-3 bg-[#1A1A1A] border border-[#333] text-white rounded-xl focus:border-[#C5A059] focus:outline-none text-sm transition-all placeholder-[#555]"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[10px] uppercase tracking-wider text-[#777] mb-1.5 font-medium">Último Atendimento / Fim</label>
+            <input 
+              type="text" 
+              value={workEnd}
+              onChange={e => setWorkEnd(e.target.value)}
+              placeholder="e.g. 19:00"
+              className="w-full px-4 py-3 bg-[#1A1A1A] border border-[#333] text-white rounded-xl focus:border-[#C5A059] focus:outline-none text-sm transition-all placeholder-[#555]"
+            />
+          </div>
+
+          <div className="sm:col-span-2 md:col-span-4 flex justify-end mt-2">
+            <button 
+              type="submit" 
+              disabled={isSavingConfig}
+              className="px-6 py-3 rounded-xl bg-[#C5A059] text-[#0A0A0A] font-bold text-xs uppercase tracking-widest hover:bg-[#8E6D31] active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              {isSavingConfig ? "Salvando..." : "Salvar Horários"}
+            </button>
+          </div>
+        </form>
       </div>
 
       {/* Zerar dados / Limpeza de Dados */}

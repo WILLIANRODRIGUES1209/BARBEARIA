@@ -23,7 +23,7 @@ import LandingPage from './pages/LandingPage';
 import WelcomeDashboard from './pages/admin/WelcomeDashboard';
 import InstallPrompt from './components/InstallPrompt';
 import NotificationPrompt from './components/NotificationPrompt';
-import { Toaster } from 'react-hot-toast';
+import { Toaster, ToastBar, toast } from 'react-hot-toast';
 
 const AdminLayout = ({ children, onLogout, authState }: { children: React.ReactNode, onLogout: () => void, authState: any }) => {
   const location = useLocation();
@@ -198,7 +198,28 @@ export default function App() {
     <BarbeariaProvider>
       <AppProvider>
         <BrowserRouter>
-          <Toaster position="top-right" />
+          <Toaster 
+            position="top-right"
+            toastOptions={{
+              duration: 5000,
+              style: {
+                background: '#1A1A1A',
+                color: '#FFF',
+                border: '1px solid #333',
+                borderRadius: '12px',
+                fontSize: '13px',
+              }
+            }}
+          >
+            {(t) => (
+              <div 
+                onClick={() => toast.dismiss(t.id)}
+                className="cursor-pointer active:scale-95 transition-all select-none"
+              >
+                <ToastBar toast={t} />
+              </div>
+            )}
+          </Toaster>
           <InstallPrompt />
           <NotificationPrompt />
           <Routes>
