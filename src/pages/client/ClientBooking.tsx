@@ -61,8 +61,10 @@ export default function ClientBooking() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [clientInfo, setClientInfo] = useState({ name: '', phone: '' });
-  const [videoPiPMode, setVideoPiPMode] = useState<'floating' | 'background' | 'hidden'>('floating');
-  const [bgOpacity, setBgOpacity] = useState<number>(0.08);
+  const [videoPiPMode, setVideoPiPMode] = useState<'floating' | 'background' | 'hidden'>('background');
+  const [bgOpacity, setBgOpacity] = useState<number>(0.25);
+  const [showIntroOverlay, setShowIntroOverlay] = useState(false);
+  const [countdown, setCountdown] = useState(3);
   const [config, setConfig] = useState({
     workStart: "08:00",
     lunchStart: "12:00",
@@ -245,6 +247,32 @@ export default function ClientBooking() {
     return `https://wa.me/${numberToUse}?text=${encodeURIComponent(text)}`;
   };
 
+  const handleBarberContinue = () => {
+    const selBarb = state.barbers.find(x => x.id === selectedBarber);
+    if (selBarb && selBarb.mediaUrl && selBarb.mediaType === 'video') {
+      setShowIntroOverlay(true);
+      setCountdown(3);
+      
+      const interval = setInterval(() => {
+        setCountdown(prev => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      setTimeout(() => {
+        clearInterval(interval);
+        setShowIntroOverlay(false);
+        setStep(3);
+      }, 3000);
+    } else {
+      setStep(3);
+    }
+  };
+
   const reset = () => {
     setStep(1);
     setSelectedService(null);
@@ -256,6 +284,59 @@ export default function ClientBooking() {
 
   return (
     <div className="min-h-screen bg-[#0A0A0A] flex flex-col items-center py-6 sm:py-12 px-4 font-sans text-[#E0E0E0] relative">
+      {/* Intro Overlay 3-second Showcase */}
+      {showIntroOverlay && (
+        <div className="fixed inset-0 bg-[#0A0A0A]/95 backdrop-blur-xl z-50 flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300">
+          <div className="w-full max-w-sm bg-[#121212] border border-[#C5A059]/40 p-6 rounded-3xl shadow-[0_0_50px_rgba(197,160,89,0.25)] flex flex-col items-center">
+            <span className="text-[10px] uppercase tracking-widest text-[#C5A059] font-bold mb-1">
+              Apresentação profissional
+            </span>
+            <h3 className="text-xl font-bold text-white mb-4">
+              {state.barbers.find(x => x.id === selectedBarber)?.name}
+            </h3>
+
+            <div className="w-full aspect-square max-w-[280px] bg-[#0A0A0A] rounded-2xl overflow-hidden border border-[#222] relative flex items-center justify-center shadow-md">
+              {(() => {
+                const selBarb = state.barbers.find(x => x.id === selectedBarber);
+                if (!selBarb || !selBarb.mediaUrl) return null;
+                
+                const embedUrl = getEmbedUrl(selBarb.mediaUrl);
+                const isIframeVideo = embedUrl.includes('youtube.com') || embedUrl.includes('youtu.be') || embedUrl.includes('player.vimeo.com');
+
+                return selBarb.mediaType === 'video' ? (
+                  isIframeVideo ? (
+                    <iframe
+                      src={`${embedUrl}${embedUrl.includes('?') ? '&' : '?'}controls=0&modestbranding=1&autoplay=1&mute=1&loop=1`}
+                      className="w-full h-full border-0 absolute inset-0 pointer-events-none scale-105"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    />
+                  ) : (
+                    <video
+                      src={selBarb.mediaUrl}
+                      autoPlay
+                      muted
+                      loop
+                      playsInline
+                      webkit-playsinline="true"
+                      className="w-full h-full object-cover absolute inset-0"
+                    />
+                  )
+                ) : null;
+              })()}
+              
+              {/* Countdown Pulsing Badge */}
+              <div className="absolute bottom-3 right-3 bg-[#C5A059] text-black w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shadow animate-pulse">
+                {countdown}
+              </div>
+            </div>
+
+            <p className="text-[10px] text-[#555] mt-4 uppercase tracking-wider font-semibold">
+              Preparando horários...
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Background Ambient Video Underplay */}
       {selectedBarber && (step === 3 || step === 4) && videoPiPMode === 'background' && (
         (() => {
@@ -284,6 +365,7 @@ export default function ClientBooking() {
                     muted
                     loop
                     playsInline
+                    webkit-playsinline="true"
                     className="w-full h-full object-cover min-w-full min-h-full"
                   />
                 )
@@ -340,81 +422,7 @@ export default function ClientBooking() {
           </div>
         )}
 
-        {/* Video Mode Controller in Step 3 or 4 */}
-        {selectedBarber && (step === 3 || step === 4) && (
-          (() => {
-            const selBarb = state.barbers.find(x => x.id === selectedBarber);
-            if (!selBarb || !selBarb.mediaUrl || selBarb.mediaType !== 'video') return null;
-            
-            return (
-              <div className="mb-6 p-4 bg-[#1A1A1A] border border-[#222] rounded-2xl flex flex-col gap-3 animate-in fade-in duration-300 shadow-md">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <span className="text-[10px] uppercase tracking-widest text-[#C5A059] font-bold">
-                    📺 Apresentação de {selBarb.name}:
-                  </span>
-                  <div className="flex gap-1">
-                    <button
-                      type="button"
-                      onClick={() => setVideoPiPMode('floating')}
-                      className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${
-                        videoPiPMode === 'floating'
-                          ? 'bg-[#C5A059] text-black shadow'
-                          : 'bg-[#121212] text-[#888] hover:text-white border border-[#222]'
-                      }`}
-                    >
-                      Card Solto
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setVideoPiPMode('background')}
-                      className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${
-                        videoPiPMode === 'background'
-                          ? 'bg-[#C5A059] text-black shadow'
-                          : 'bg-[#121212] text-[#888] hover:text-white border border-[#222]'
-                      }`}
-                    >
-                      Ao Fundo
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setVideoPiPMode('hidden')}
-                      className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${
-                        videoPiPMode === 'hidden'
-                          ? 'bg-red-950/40 text-red-400 border border-red-900/30'
-                          : 'bg-[#121212] text-[#888] hover:text-white border border-[#222]'
-                      }`}
-                    >
-                      Ocultar
-                    </button>
-                  </div>
-                </div>
-                
-                {videoPiPMode === 'background' && (
-                  <div className="flex items-center justify-between pt-2 border-t border-[#222] text-[10px]">
-                    <span className="text-[#666] uppercase tracking-wider">Opacidade ao fundo:</span>
-                    <div className="flex items-center gap-2">
-                      <button 
-                        type="button"
-                        onClick={() => setBgOpacity(Math.max(0.02, bgOpacity - 0.04))} 
-                        className="w-6 h-6 bg-[#121212] rounded border border-[#222] flex items-center justify-center text-xs font-bold text-white hover:bg-[#222] transition-colors"
-                      >
-                        -
-                      </button>
-                      <span className="font-mono text-[#C5A059] text-xs font-bold min-w-[28px] text-center">{Math.round(bgOpacity * 100)}%</span>
-                      <button 
-                        type="button"
-                        onClick={() => setBgOpacity(Math.min(0.25, bgOpacity + 0.04))} 
-                        className="w-6 h-6 bg-[#121212] rounded border border-[#222] flex items-center justify-center text-xs font-bold text-white hover:bg-[#222] transition-colors"
-                      >
-                        +
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })()
-        )}
+
 
         {/* Step 1: Services */}
         {step === 1 && (
@@ -482,7 +490,7 @@ export default function ClientBooking() {
                       {b.mediaUrl ? (
                         b.mediaType === 'video' ? (
                           b.mediaUrl.startsWith('data:') ? (
-                            <video src={b.mediaUrl} muted autoPlay loop playsInline className="w-full h-full object-cover pointer-events-none" />
+                            <video src={b.mediaUrl} muted autoPlay loop playsInline webkit-playsinline="true" className="w-full h-full object-cover pointer-events-none" />
                           ) : (
                             <div className="w-full h-full bg-[#C5A059] flex items-center justify-center text-[#0A0A0A] font-bold text-xs">▶</div>
                           )
@@ -528,10 +536,11 @@ export default function ClientBooking() {
                         ) : (
                           <video
                             src={selBarb.mediaUrl}
-                            controls
                             autoPlay
                             muted
                             loop
+                            playsInline
+                            webkit-playsinline="true"
                             className="w-full h-full object-cover absolute inset-0"
                           />
                         )
@@ -559,7 +568,7 @@ export default function ClientBooking() {
               </button>
               <button
                 disabled={!selectedBarber}
-                onClick={() => setStep(3)}
+                onClick={handleBarberContinue}
                 className="w-2/3 bg-[#C5A059] text-[#0A0A0A] font-bold text-[10px] sm:text-xs uppercase tracking-widest py-3 sm:py-4 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#8E6D31] transition-colors"
               >
                 Continuar
@@ -743,86 +752,7 @@ export default function ClientBooking() {
         )}
       </div>
 
-      {/* Floating mini TV player (Card Voando / Picture-in-Picture) */}
-      {selectedBarber && (step === 3 || step === 4) && videoPiPMode === 'floating' && (
-        (() => {
-          const selBarb = state.barbers.find(x => x.id === selectedBarber);
-          if (!selBarb || !selBarb.mediaUrl || selBarb.mediaType !== 'video') return null;
 
-          const embedUrl = getEmbedUrl(selBarb.mediaUrl);
-          const isIframeVideo = embedUrl.includes('youtube.com') || embedUrl.includes('youtu.be') || embedUrl.includes('player.vimeo.com');
-
-          return (
-            <div className="fixed bottom-4 sm:bottom-6 right-4 sm:right-6 z-40 w-48 sm:w-56 bg-[#121212]/95 backdrop-blur border border-[#C5A059]/40 p-2 sm:p-3 rounded-2xl shadow-[0_8px_32px_rgba(197,160,89,0.3)] animate-in slide-in-from-bottom-5 duration-500 overflow-hidden max-w-[90vw]">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-bold text-[#C5A059] uppercase tracking-widest truncate max-w-[110px] sm:max-w-[140px]">
-                  🎬 {selBarb.name}
-                </span>
-                <div className="flex items-center gap-1.5">
-                  {/* Toggle to background mode */}
-                  <button 
-                    type="button"
-                    onClick={() => setVideoPiPMode('background')}
-                    className="p-1 rounded bg-[#1A1A1A] border border-[#333] text-[#C5A059] hover:bg-[#222] hover:text-white transition-colors" 
-                    title="Colocar no Fundo"
-                  >
-                    <span className="text-[9px] uppercase tracking-wider font-extrabold block leading-none px-1">Fundo</span>
-                  </button>
-                  {/* Close/Hide Button */}
-                  <button 
-                    type="button"
-                    onClick={() => setVideoPiPMode('hidden')}
-                    className="p-1 h-5 w-5 rounded bg-red-950/60 text-red-400 hover:bg-red-900 border border-red-900/30 hover:text-white flex items-center justify-center transition-colors text-[9px] font-bold" 
-                    title="Minimizar"
-                  >
-                    ✕
-                  </button>
-                </div>
-              </div>
-              
-              <div className="aspect-video w-full bg-[#0A0A0A] rounded-lg overflow-hidden relative border border-[#222]">
-                {selBarb.mediaType === 'video' ? (
-                  isIframeVideo ? (
-                    <iframe
-                      src={`${embedUrl}${embedUrl.includes('?') ? '&' : '?'}controls=0&modestbranding=1&autoplay=1&mute=1&loop=1`}
-                      className="w-full h-full border-0 absolute inset-0 pointer-events-none scale-105"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    />
-                  ) : (
-                    <video
-                      src={selBarb.mediaUrl}
-                      autoPlay
-                      muted
-                      loop
-                      playsInline
-                      controls={false}
-                      className="w-full h-full object-cover absolute inset-0"
-                    />
-                  )
-                ) : (
-                  <img
-                    src={selBarb.mediaUrl}
-                    alt={selBarb.name}
-                    className="w-full h-full object-cover absolute inset-0"
-                    referrerPolicy="no-referrer"
-                  />
-                )}
-              </div>
-              
-              <div className="flex justify-between items-center mt-2 pt-1 border-t border-[#222] text-[9px] text-[#777] font-semibold">
-                <span>Reproduzindo Mudo</span>
-                <button
-                  type="button"
-                  onClick={() => setVideoPiPMode('background')}
-                  className="text-[#C5A059] hover:underline hover:text-white uppercase tracking-wider"
-                >
-                  Modo Cheio
-                </button>
-              </div>
-            </div>
-          );
-        })()
-      )}
 
       <a href="/admin" className="mt-8 text-xs font-bold uppercase tracking-widest text-[#555] hover:text-[#C5A059] transition-colors flex items-center gap-2 bg-[#121212] border border-[#222] px-4 py-2 rounded-full">
         <User size={14} /> Acesso Restrito
