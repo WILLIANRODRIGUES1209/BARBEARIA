@@ -8,6 +8,8 @@ import { addDays, format, isSameDay, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { loadConfig } from '../../utils/configHelper';
 
+const DEFAULT_BARBER_PHOTO = "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=300";
+
 const getEmbedUrl = (url: string): string => {
   if (!url) return '';
   let id = '';
@@ -248,29 +250,7 @@ export default function ClientBooking() {
   };
 
   const handleBarberContinue = () => {
-    const selBarb = state.barbers.find(x => x.id === selectedBarber);
-    if (selBarb && selBarb.mediaUrl && selBarb.mediaType === 'video') {
-      setShowIntroOverlay(true);
-      setCountdown(3);
-      
-      const interval = setInterval(() => {
-        setCountdown(prev => {
-          if (prev <= 1) {
-            clearInterval(interval);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-
-      setTimeout(() => {
-        clearInterval(interval);
-        setShowIntroOverlay(false);
-        setStep(3);
-      }, 3000);
-    } else {
-      setStep(3);
-    }
+    setStep(3);
   };
 
   const reset = () => {
@@ -341,40 +321,34 @@ export default function ClientBooking() {
       {selectedBarber && (step === 3 || step === 4) && videoPiPMode === 'background' && (
         (() => {
           const selBarb = state.barbers.find(x => x.id === selectedBarber);
-          if (!selBarb || !selBarb.mediaUrl) return null;
+          if (!selBarb) return null;
+
+          const videoToPlay = selBarb.videoUrl || (selBarb.mediaType === 'video' ? selBarb.mediaUrl : '') || '';
+          if (!videoToPlay) return null;
           
-          const embedUrl = getEmbedUrl(selBarb.mediaUrl);
+          const embedUrl = getEmbedUrl(videoToPlay);
           const isIframeVideo = embedUrl.includes('youtube.com') || embedUrl.includes('youtu.be') || embedUrl.includes('player.vimeo.com');
 
           return (
             <div 
               className="fixed inset-0 w-full h-full pointer-events-none z-0 overflow-hidden select-none transition-all duration-1000"
-              style={{ opacity: bgOpacity }}
+              style={{ opacity: 0.25 }}
             >
-              {selBarb.mediaType === 'video' ? (
-                isIframeVideo ? (
-                  <iframe
-                    src={`${embedUrl}${embedUrl.includes('?') ? '&' : '?'}controls=0&modestbranding=1&autoplay=1&mute=1&loop=1`}
-                    className="absolute inset-0 w-[300%] h-[300%] -translate-x-[33%] -translate-y-[33%] border-0 object-cover pointer-events-none"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  />
-                ) : (
-                  <video
-                    src={selBarb.mediaUrl}
-                    autoPlay
-                    muted
-                    loop
-                    playsInline
-                    webkit-playsinline="true"
-                    className="w-full h-full object-cover min-w-full min-h-full"
-                  />
-                )
+              {isIframeVideo ? (
+                <iframe
+                  src={`${embedUrl}${embedUrl.includes('?') ? '&' : '?'}controls=0&modestbranding=1&autoplay=1&mute=1&loop=1`}
+                  className="absolute inset-0 w-[300%] h-[300%] -translate-x-[33%] -translate-y-[33%] border-0 object-cover pointer-events-none"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                />
               ) : (
-                <img
-                  src={selBarb.mediaUrl}
-                  alt=""
-                  className="w-full h-full object-cover"
-                  referrerPolicy="no-referrer"
+                <video
+                  src={videoToPlay}
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  webkit-playsinline="true"
+                  className="w-full h-full object-cover min-w-full min-h-full"
                 />
               )}
               {/* Radial gradient screen filter */}
@@ -487,18 +461,12 @@ export default function ClientBooking() {
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 bg-[#222] rounded-full flex items-center justify-center text-[#777] overflow-hidden relative border border-[#333]">
-                      {b.mediaUrl ? (
-                        b.mediaType === 'video' ? (
-                          b.mediaUrl.startsWith('data:') ? (
-                            <video src={b.mediaUrl} muted autoPlay loop playsInline webkit-playsinline="true" className="w-full h-full object-cover pointer-events-none" />
-                          ) : (
-                            <div className="w-full h-full bg-[#C5A059] flex items-center justify-center text-[#0A0A0A] font-bold text-xs">▶</div>
-                          )
-                        ) : (
-                          <img src={b.mediaUrl} alt={b.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                        )
+                      {b.photoUrl ? (
+                        <img src={b.photoUrl} alt={b.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      ) : b.mediaUrl && b.mediaType !== 'video' ? (
+                        <img src={b.mediaUrl} alt={b.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                       ) : (
-                        <User size={24} />
+                        <img src={DEFAULT_BARBER_PHOTO} alt={b.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                       )}
                     </div>
                     <div>
@@ -513,46 +481,24 @@ export default function ClientBooking() {
             {selectedBarber && (
               (() => {
                 const selBarb = state.barbers.find(x => x.id === selectedBarber);
-                if (!selBarb || !selBarb.mediaUrl) return null;
+                if (!selBarb) return null;
                 
-                const embedUrl = getEmbedUrl(selBarb.mediaUrl);
-                const isIframeVideo = embedUrl.includes('youtube.com') || embedUrl.includes('youtu.be') || embedUrl.includes('player.vimeo.com');
+                const photoToShow = selBarb.photoUrl || (selBarb.mediaType !== 'video' ? selBarb.mediaUrl : '') || DEFAULT_BARBER_PHOTO;
 
                 return (
-                  <div className="mt-6 p-4 bg-[#1A1A1A] border border-[#222] rounded-2xl animate-in fade-in zoom-in-95 duration-300">
+                  <div className="mt-6 p-4 bg-[#1A1A1A] border border-[#222] rounded-2xl animate-in fade-in zoom-in-95 duration-300 w-full max-w-[320px] mx-auto">
                     <h3 className="text-xs uppercase tracking-widest text-[#C5A059] font-bold mb-3 text-center">
                       Apresentação de {selBarb.name}
                     </h3>
                     
                     <div className="w-full aspect-square max-w-[280px] mx-auto bg-[#121212] rounded-xl overflow-hidden border border-[#333] relative flex items-center justify-center shadow-lg">
-                      {selBarb.mediaType === 'video' ? (
-                        isIframeVideo ? (
-                          <iframe
-                            src={embedUrl}
-                            className="w-full h-full border-0 absolute inset-0"
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                            allowFullScreen
-                          ></iframe>
-                        ) : (
-                          <video
-                            src={selBarb.mediaUrl}
-                            autoPlay
-                            muted
-                            loop
-                            playsInline
-                            webkit-playsinline="true"
-                            className="w-full h-full object-cover absolute inset-0"
-                          />
-                        )
-                      ) : (
-                        <img
-                          src={selBarb.mediaUrl}
-                          alt={selBarb.name}
-                          className="w-full h-full object-cover absolute inset-0"
-                          style={{ objectFit: 'cover' }}
-                          referrerPolicy="no-referrer"
-                        />
-                      )}
+                      <img
+                        src={photoToShow}
+                        alt={selBarb.name}
+                        className="w-full h-full object-cover absolute inset-0"
+                        style={{ objectFit: 'cover' }}
+                        referrerPolicy="no-referrer"
+                      />
                     </div>
                   </div>
                 );

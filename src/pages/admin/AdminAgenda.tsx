@@ -429,7 +429,7 @@ export default function AdminAgenda() {
           className="bg-transparent border border-[#C5A059] text-[#C5A059] font-bold px-4 py-2.5 rounded-xl text-xs uppercase tracking-widest hover:bg-[#C5A05911] flex items-center justify-center gap-2 transition-all self-start md:self-center"
         >
           <Plus size={16} />
-          Agendamento Manual (Walk-in / Telefone)
+          Agendamento Manual
         </button>
       </div>
 
@@ -1058,7 +1058,7 @@ export default function AdminAgenda() {
         <div className="fixed inset-0 bg-black/80 flex flex-col items-center justify-center z-50 p-4">
           <div className="bg-[#121212] p-6 sm:p-8 rounded-3xl w-full max-w-lg border border-[#333] shadow-2xl animate-in zoom-in-95 duration-200 overflow-y-auto max-h-[90vh]">
             <h2 className="text-xl font-bold text-white mb-4 uppercase tracking-wider flex items-center gap-2">
-              <CalendarIcon className="text-[#C5A059]" /> Agendamento Manual (Walk-in / Celular)
+              <CalendarIcon className="text-[#C5A059]" /> Agendamento Manual
             </h2>
             <form onSubmit={handleConfirmManualBooking} className="space-y-4 text-white">
               {/* Client Type Toggle */}

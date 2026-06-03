@@ -25,6 +25,8 @@ export type Barber = {
   acesso?: string;
   mediaUrl?: string;
   mediaType?: 'image' | 'video';
+  photoUrl?: string;
+  videoUrl?: string;
 };
 
 export type Appointment = {

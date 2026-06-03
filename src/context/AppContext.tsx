@@ -25,7 +25,7 @@ export interface AppContextType {
   addBarber: (barber: Omit<Barber, 'id'>) => Promise<void>;
   editBarber: (id: string, updates: Partial<Barber>) => Promise<void>;
   deleteBarber: (id: string) => Promise<void>;
-  refreshData: () => Promise<void>;
+  refreshData: (forceAll?: boolean) => Promise<void>;
   clearTestData: () => Promise<void>;
 }
 
@@ -93,6 +93,8 @@ const mapBarber = (b: any) => {
   let phone = b.telefone || '';
   let mediaUrl = '';
   let mediaType: 'image' | 'video' = 'image';
+  let photoUrl = '';
+  let videoUrl = '';
 
   if (phone.trim().startsWith('{')) {
     try {
@@ -100,6 +102,8 @@ const mapBarber = (b: any) => {
       phone = parsed.phone || '';
       mediaUrl = parsed.mediaUrl || '';
       mediaType = parsed.mediaType || 'image';
+      photoUrl = parsed.photoUrl || '';
+      videoUrl = parsed.videoUrl || '';
     } catch (e) {
       // Not JSON JSON format, ignore error
     }
@@ -111,6 +115,8 @@ const mapBarber = (b: any) => {
     phone: phone,
     mediaUrl: mediaUrl,
     mediaType: mediaType,
+    photoUrl: photoUrl,
+    videoUrl: videoUrl,
     active: b.ativo,
     comissao: b.comissao,
     pin: b.pin,
@@ -128,35 +134,53 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [state, setState] = useState<AppState>(INITIAL_STATE);
   const { barbearia, user } = useBarbearia();
 
-  const refreshData = async () => {
+  const refreshData = async (forceAll = false) => {
     if (!barbearia) return;
     try {
-      const [
-        { data: agendamentos }, 
-        { data: produtos }, 
-        { data: transacoes },
-        { data: servicos },
-        { data: barbeiros },
-        { data: clientes }
-      ] = await Promise.all([
+      // If we don't have barbers or services yet, we MUST load them
+      const isInitialFetch = state.barbers.length === 0 || state.services.length === 0;
+      const shouldLoadCatalogAndConfig = forceAll || isInitialFetch;
+
+      const promises: any[] = [
         supabase.from('agendamentos').select('*').eq('barbearia_id', barbearia.id),
-        supabase.from('produtos').select('*').eq('barbearia_id', barbearia.id),
-        supabase.from('transacoes').select('*').eq('barbearia_id', barbearia.id),
-        supabase.from('servicos').select('*').eq('barbearia_id', barbearia.id),
-        supabase.from('barbeiros').select('*').eq('barbearia_id', barbearia.id),
-        supabase.from('clientes').select('*').eq('barbearia_id', barbearia.id)
-      ]);
-      
-      setState(prev => ({
-        ...prev,
-        services: (servicos || []).map(mapService),
-        barbers: (barbeiros || []).filter(b => b.nome !== '__SYSTEM_CONFIG__').map(mapBarber),
-        clients: (clientes || []).map(mapClient),
-        appointments: (agendamentos || []).map(mapAppointment),
-        products: (produtos || []).map(mapProduct),
-        transactions: (transacoes || []).map(mapTransaction),
-        isConnected: true
-      }));
+        supabase.from('transacoes').select('*').eq('barbearia_id', barbearia.id)
+      ];
+
+      if (shouldLoadCatalogAndConfig) {
+        promises.push(supabase.from('produtos').select('*').eq('barbearia_id', barbearia.id));
+        promises.push(supabase.from('servicos').select('*').eq('barbearia_id', barbearia.id));
+        promises.push(supabase.from('barbeiros').select('*').eq('barbearia_id', barbearia.id));
+        promises.push(supabase.from('clientes').select('*').eq('barbearia_id', barbearia.id));
+      }
+
+      const results = await Promise.all(promises);
+      const agendamentos = results[0]?.data;
+      const transacoes = results[1]?.data;
+
+      if (shouldLoadCatalogAndConfig) {
+        const produtos = results[2]?.data;
+        const servicos = results[3]?.data;
+        const barbeiros = results[4]?.data;
+        const clientes = results[5]?.data;
+
+        setState(prev => ({
+          ...prev,
+          services: (servicos || []).map(mapService),
+          barbers: (barbeiros || []).filter(b => b.nome !== '__SYSTEM_CONFIG__').map(mapBarber),
+          clients: (clientes || []).map(mapClient),
+          appointments: (agendamentos || []).map(mapAppointment),
+          products: (produtos || []).map(mapProduct),
+          transactions: (transacoes || []).map(mapTransaction),
+          isConnected: true
+        }));
+      } else {
+        setState(prev => ({
+          ...prev,
+          appointments: (agendamentos || []).map(mapAppointment),
+          transactions: (transacoes || []).map(mapTransaction),
+          isConnected: true
+        }));
+      }
     } catch (err) {
       console.error("Supabase load error:", err);
       setState(prev => ({ ...prev, isConnected: false }));
@@ -166,22 +190,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     if (!barbearia) return;
 
-    // Initial load
-    refreshData();
+    // Initial load - load everything
+    refreshData(true);
 
-    // Auto-refresh when tab gains focus or visibility state changes
+    // Auto-refresh when tab gains focus or visibility state changes (only dynamic data)
     const handleFocusOrVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        refreshData();
+        refreshData(false);
       }
     };
 
     window.addEventListener('focus', handleFocusOrVisibilityChange);
     document.addEventListener('visibilitychange', handleFocusOrVisibilityChange);
 
-    // High fidelity backup timer (every 15 seconds)
+    // High fidelity backup timer (every 15 seconds, only dynamic data)
     const backupInterval = setInterval(() => {
-      refreshData();
+      refreshData(false);
     }, 15000);
 
     const playBeep = () => {
@@ -1068,7 +1092,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const phoneString = JSON.stringify({
         phone: barber.phone || '',
         mediaUrl: barber.mediaUrl || '',
-        mediaType: barber.mediaType || 'image'
+        mediaType: barber.mediaType || 'image',
+        photoUrl: barber.photoUrl || '',
+        videoUrl: barber.videoUrl || ''
       });
 
       const { data, error } = await supabase.from('barbeiros').insert({
@@ -1106,15 +1132,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (updates.pin !== undefined) mappedData.pin = updates.pin;
     if (updates.acesso !== undefined) mappedData.acesso = updates.acesso;
 
-    if (updates.phone !== undefined || updates.mediaUrl !== undefined || updates.mediaType !== undefined) {
+    if (updates.phone !== undefined || updates.mediaUrl !== undefined || updates.mediaType !== undefined || updates.photoUrl !== undefined || updates.videoUrl !== undefined) {
       const phoneVal = updates.phone !== undefined ? updates.phone : (currentBarberInState?.phone || '');
       const mediaUrlVal = updates.mediaUrl !== undefined ? updates.mediaUrl : (currentBarberInState?.mediaUrl || '');
       const mediaTypeVal = updates.mediaType !== undefined ? updates.mediaType : (currentBarberInState?.mediaType || 'image');
+      const photoUrlVal = updates.photoUrl !== undefined ? updates.photoUrl : (currentBarberInState?.photoUrl || '');
+      const videoUrlVal = updates.videoUrl !== undefined ? updates.videoUrl : (currentBarberInState?.videoUrl || '');
 
       mappedData.telefone = JSON.stringify({
         phone: phoneVal,
         mediaUrl: mediaUrlVal,
-        mediaType: mediaTypeVal
+        mediaType: mediaTypeVal,
+        photoUrl: photoUrlVal,
+        videoUrl: videoUrlVal
       });
     }
 
