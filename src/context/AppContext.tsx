@@ -45,15 +45,28 @@ const getStoredData = <T,>(key: string, defaultData: T): T => {
   return defaultData;
 };
 
-const INITIAL_STATE: AppState = {
-  services: getStoredData('barbearia_services', DEFAULT_SERVICES),
-  clients: getStoredData('barbearia_clients', []),
-  barbers: getStoredData('barbearia_barbers', []),
-  appointments: [],
-  products: [],
-  transactions: [],
-  isConnected: false,
+const getInitialState = (): AppState => {
+  let cachedBarbeariaId = '';
+  try {
+    const stored = localStorage.getItem('app_barbearia');
+    if (stored) {
+      cachedBarbeariaId = JSON.parse(stored).id;
+    }
+  } catch (e) {}
+
+  const bId = cachedBarbeariaId;
+  return {
+    services: getStoredData(bId ? `barbearia_services_${bId}` : 'barbearia_services', DEFAULT_SERVICES),
+    clients: getStoredData(bId ? `barbearia_clients_${bId}` : 'barbearia_clients', []),
+    barbers: getStoredData(bId ? `barbearia_barbers_${bId}` : 'barbearia_barbers', []),
+    appointments: getStoredData(bId ? `barbearia_appointments_${bId}` : 'barbearia_appointments', []),
+    products: getStoredData(bId ? `barbearia_products_${bId}` : 'barbearia_products', []),
+    transactions: [],
+    isConnected: false,
+  };
 };
+
+const INITIAL_STATE: AppState = getInitialState();
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
@@ -136,53 +149,98 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const refreshData = async (forceAll = false) => {
     if (!barbearia) return;
+    const start = performance.now();
     try {
-      // If we don't have barbers or services yet, we MUST load them
+      const isAdminPage = window.location.pathname.startsWith('/admin') || window.location.pathname.includes('admin') || window.location.pathname.includes('login');
       const isInitialFetch = state.barbers.length === 0 || state.services.length === 0;
       const shouldLoadCatalogAndConfig = forceAll || isInitialFetch;
 
-      const promises: any[] = [
-        supabase.from('agendamentos').select('*').eq('barbearia_id', barbearia.id),
-        supabase.from('transacoes').select('*').eq('barbearia_id', barbearia.id)
-      ];
+      const fetchList: { key: string; promise: any }[] = [];
 
-      if (shouldLoadCatalogAndConfig) {
-        promises.push(supabase.from('produtos').select('*').eq('barbearia_id', barbearia.id));
-        promises.push(supabase.from('servicos').select('*').eq('barbearia_id', barbearia.id));
-        promises.push(supabase.from('barbeiros').select('*').eq('barbearia_id', barbearia.id));
-        promises.push(supabase.from('clientes').select('*').eq('barbearia_id', barbearia.id));
+      // 1. agendamentos (Always loaded but heavily optimized with tight filters for clients)
+      let agendamentosQuery = supabase.from('agendamentos').select('*').eq('barbearia_id', barbearia.id);
+      if (!isAdminPage) {
+        // Safe yesterday timestamp in PT-BR timezone minus buffer
+        const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        agendamentosQuery = agendamentosQuery.or(`data_hora.gte.${yesterday},cliente_nome.eq.CLIENTE_FIXO,cliente_nome.eq.AGENDA_BLOQUEADA`);
+      }
+      fetchList.push({ key: 'agendamentos', promise: agendamentosQuery });
+
+      // 2. transacoes (Admin only - completely skipped on client booking to avoid downloading historical financials)
+      if (isAdminPage) {
+        fetchList.push({ key: 'transacoes', promise: supabase.from('transacoes').select('*').eq('barbearia_id', barbearia.id) });
       }
 
-      const results = await Promise.all(promises);
-      const agendamentos = results[0]?.data;
-      const transacoes = results[1]?.data;
-
+      // 3. servicos and barbeiros (Initial or forceAll load)
       if (shouldLoadCatalogAndConfig) {
-        const produtos = results[2]?.data;
-        const servicos = results[3]?.data;
-        const barbeiros = results[4]?.data;
-        const clientes = results[5]?.data;
+        fetchList.push({ key: 'servicos', promise: supabase.from('servicos').select('*').eq('barbearia_id', barbearia.id) });
+        fetchList.push({ key: 'barbeiros', promise: supabase.from('barbeiros').select('*').eq('barbearia_id', barbearia.id) });
 
-        setState(prev => ({
-          ...prev,
-          services: (servicos || []).map(mapService),
-          barbers: (barbeiros || []).filter(b => b.nome !== '__SYSTEM_CONFIG__').map(mapBarber),
-          clients: (clientes || []).map(mapClient),
-          appointments: (agendamentos || []).map(mapAppointment),
-          products: (produtos || []).map(mapProduct),
-          transactions: (transacoes || []).map(mapTransaction),
-          isConnected: true
-        }));
-      } else {
-        setState(prev => ({
-          ...prev,
-          appointments: (agendamentos || []).map(mapAppointment),
-          transactions: (transacoes || []).map(mapTransaction),
-          isConnected: true
-        }));
+        // 4. produtos and clientes (Admin only catalog loading)
+        if (isAdminPage) {
+          fetchList.push({ key: 'produtos', promise: supabase.from('produtos').select('*').eq('barbearia_id', barbearia.id) });
+          fetchList.push({ key: 'clientes', promise: supabase.from('clientes').select('*').eq('barbearia_id', barbearia.id) });
+        }
       }
+
+      const results = await Promise.all(fetchList.map(item => item.promise));
+      
+      const obj: Record<string, any[]> = {};
+      fetchList.forEach((item, idx) => {
+        obj[item.key] = results[idx]?.data || [];
+      });
+
+      setState(prev => {
+        const nextState = { ...prev, isConnected: true };
+
+        if (obj.agendamentos !== undefined) {
+          const mappedAppoints = obj.agendamentos.map(mapAppointment);
+          nextState.appointments = mappedAppoints;
+          try {
+            localStorage.setItem(`barbearia_appointments_${barbearia.id}`, JSON.stringify(mappedAppoints));
+          } catch (e) {}
+        }
+        if (obj.transacoes !== undefined) {
+          nextState.transactions = obj.transacoes.map(mapTransaction);
+        }
+        if (obj.services !== undefined || obj.servicos !== undefined) {
+          const servs = obj.servicos || obj.services || [];
+          const mappedServs = servs.map(mapService);
+          nextState.services = mappedServs;
+          try {
+            localStorage.setItem(`barbearia_services_${barbearia.id}`, JSON.stringify(mappedServs));
+          } catch (e) {}
+        }
+        if (obj.barbeiros !== undefined) {
+          const mappedBarbs = obj.barbeiros.filter((b: any) => b.nome !== '__SYSTEM_CONFIG__').map(mapBarber);
+          nextState.barbers = mappedBarbs;
+          try {
+            localStorage.setItem(`barbearia_barbers_${barbearia.id}`, JSON.stringify(mappedBarbs));
+          } catch (e) {}
+        }
+        if (obj.produtos !== undefined) {
+          const mappedProds = obj.produtos.map(mapProduct);
+          nextState.products = mappedProds;
+          try {
+            localStorage.setItem(`barbearia_products_${barbearia.id}`, JSON.stringify(mappedProds));
+          } catch (e) {}
+        }
+        if (obj.clientes !== undefined) {
+          const mappedClients = obj.clientes.map(mapClient);
+          nextState.clients = mappedClients;
+          try {
+            localStorage.setItem(`barbearia_clients_${barbearia.id}`, JSON.stringify(mappedClients));
+          } catch (e) {}
+        }
+
+        return nextState;
+      });
+
+      const end = performance.now();
+      console.log(`[Supabase Load] Completed in ${(end - start).toFixed(1)}ms. Path: ${window.location.pathname}`);
     } catch (err) {
-      console.error("Supabase load error:", err);
+      const end = performance.now();
+      console.error(`[Supabase Load] Error after ${(end - start).toFixed(1)}ms:`, err);
       setState(prev => ({ ...prev, isConnected: false }));
     }
   };
