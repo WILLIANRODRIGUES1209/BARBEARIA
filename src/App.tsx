@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
-import { Scissors, LayoutDashboard, Calendar as CalendarIcon, Package, DollarSign, User, Users, Settings, LogOut, BarChart3, ShoppingCart } from 'lucide-react';
+import { Scissors, LayoutDashboard, Calendar as CalendarIcon, Package, DollarSign, User, Users, Settings, LogOut, BarChart3, ShoppingCart, Receipt } from 'lucide-react';
 import { AppProvider, useAppContext } from './context/AppContext';
 import { BarbeariaProvider, useBarbearia } from './context/BarbeariaContext';
 import { supabase } from './supabase';
@@ -19,6 +19,7 @@ import AdminBarbeiros from './pages/admin/AdminBarbeiros';
 import AdminMeuHistorico from './pages/admin/AdminMeuHistorico';
 import AdminRelatorios from './pages/admin/AdminRelatorios';
 import AdminPDV from './pages/admin/AdminPDV';
+import AdminLancarComanda from './pages/admin/AdminLancarComanda';
 import LandingPage from './pages/LandingPage';
 import WelcomeDashboard from './pages/admin/WelcomeDashboard';
 import InstallPrompt from './components/InstallPrompt';
@@ -47,6 +48,7 @@ const AdminLayout = ({ children, onLogout, authState }: { children: React.ReactN
   const allNavItems = [
     { name: 'Dashboard', path: '/admin', icon: LayoutDashboard, adminOnly: true },
     { name: 'Agenda', path: '/admin/agenda', icon: CalendarIcon, adminOnly: false },
+    { name: 'Lançar Comanda', path: '/admin/lancar-comanda', icon: Receipt, adminOnly: false },
     { name: 'PDV / Caixa', path: '/admin/pdv', icon: ShoppingCart, adminOnly: false },
     { name: 'Clientes', path: '/admin/clientes', icon: Users, adminOnly: false },
     { name: 'Meu Histórico', path: '/admin/meu-historico', icon: DollarSign, barbeiroOnly: true },
@@ -269,6 +271,7 @@ export default function App() {
             {/* Admin Routes */}
             <Route path="/admin" element={<ProtectedRoute requireAdmin><AdminDashboard /></ProtectedRoute>} />
             <Route path="/admin/boas-vindas" element={<ProtectedRoute requireAdmin><WelcomeDashboard /></ProtectedRoute>} />
+            <Route path="/admin/lancar-comanda" element={<ProtectedRoute><AdminLancarComanda /></ProtectedRoute>} />
             <Route path="/admin/pdv" element={<ProtectedRoute><AdminPDV /></ProtectedRoute>} />
             <Route path="/admin/agenda" element={<ProtectedRoute><AdminAgenda /></ProtectedRoute>} />
             <Route path="/admin/clientes" element={<ProtectedRoute><AdminClientes /></ProtectedRoute>} />
