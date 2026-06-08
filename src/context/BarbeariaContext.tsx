@@ -46,7 +46,7 @@ export const BarbeariaProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const { data, error } = await supabase
         .from('barbearias')
         .select('id, nome, slug')
-        .eq('slug', slug)
+        .ilike('slug', slug)
         .maybeSingle();
 
       if (data) {
@@ -83,7 +83,7 @@ export const BarbeariaProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         }
         
         // On guest client pages (like pages with /agendar or pathnames with slug inputs), we should not reset the active barbearia to null
-        const isClientPage = window.location.pathname.includes('/agendar') || window.location.pathname === '/' || window.location.pathname === '';
+        const isClientPage = window.location.pathname.toLowerCase().includes('/agendar') || window.location.pathname === '/' || window.location.pathname === '';
         if (!isBarbeiroLoggedIn && !isClientPage) {
           setBarbearia(null);
         }

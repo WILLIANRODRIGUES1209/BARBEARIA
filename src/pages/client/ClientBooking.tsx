@@ -463,7 +463,7 @@ export default function ClientBooking() {
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-[#C5A05915] text-[#C5A059] border border-[#C5A05933] rounded-full flex items-center justify-center font-bold text-sm tracking-tighter shrink-0 uppercase">
-                      {b.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2)}
+                      {(b.name || 'B').split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase().substring(0, 2)}
                     </div>
                     <div>
                       <div className="font-semibold text-white text-sm">{b.name}</div>

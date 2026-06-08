@@ -184,11 +184,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }
 
-      const results = await Promise.all(fetchList.map(item => item.promise));
+      // Map promises individually to catch any SQL or RLS permission error on a single table and prevent it from crashing the entire loader
+      const results = await Promise.all(
+        fetchList.map(async (item) => {
+          try {
+            const res = await item.promise;
+            if (res && res.error) {
+              console.warn(`[Supabase Load] Error loading [${item.key}]:`, res.error);
+              return { key: item.key, data: [], error: res.error };
+            }
+            return { key: item.key, data: (res && res.data) || [], error: null };
+          } catch (err) {
+            console.error(`[Supabase Load] Exception loading [${item.key}]:`, err);
+            return { key: item.key, data: [], error: err };
+          }
+        })
+      );
       
       const obj: Record<string, any[]> = {};
-      fetchList.forEach((item, idx) => {
-        obj[item.key] = results[idx]?.data || [];
+      results.forEach((res) => {
+        obj[res.key] = res.data;
       });
 
       setState(prev => {
