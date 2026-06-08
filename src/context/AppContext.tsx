@@ -277,10 +277,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     window.addEventListener('focus', handleFocusOrVisibilityChange);
     document.addEventListener('visibilitychange', handleFocusOrVisibilityChange);
 
-    // High fidelity backup timer (every 15 seconds, only dynamic data)
+    // High fidelity backup timer (every 3 minutes, only dynamic data, and only if the tab is active/visible)
     const backupInterval = setInterval(() => {
-      refreshData(false);
-    }, 15000);
+      if (document.visibilityState === 'visible') {
+        refreshData(false);
+      }
+    }, 180000);
 
     const playBeep = () => {
       try {
