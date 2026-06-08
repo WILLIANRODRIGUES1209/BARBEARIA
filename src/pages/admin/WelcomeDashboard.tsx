@@ -10,7 +10,7 @@ export default function WelcomeDashboard() {
 
   // Fallback to "sua-barbearia" if context hasn't loaded yet, though ideally it should be loaded.
   const barbeariaSlug = barbearia?.slug || 'sua-barbearia';
-  const bookingLink = `${window.location.origin}/${barbeariaSlug}`;
+  const bookingLink = `${window.location.origin}/agendar/${barbeariaSlug}`;
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(bookingLink).then(() => {

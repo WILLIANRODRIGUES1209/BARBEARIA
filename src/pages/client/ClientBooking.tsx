@@ -67,6 +67,7 @@ export default function ClientBooking() {
   const [bgOpacity, setBgOpacity] = useState<number>(0.25);
   const [showIntroOverlay, setShowIntroOverlay] = useState(false);
   const [countdown, setCountdown] = useState(3);
+  const [logoError, setLogoError] = useState(false);
   const [config, setConfig] = useState({
     workStart: "08:00",
     lunchStart: "12:00",
@@ -360,13 +361,14 @@ export default function ClientBooking() {
 
       {/* Header */}
       <div className="text-center mb-6 sm:mb-8">
-        {config.logoUrl ? (
+        {config.logoUrl && !logoError ? (
           <div className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 bg-[#121212] border border-[#222] rounded-2xl mb-3 sm:mb-4 overflow-hidden shadow-[0_0_15px_#C5A05922]">
             <img 
               src={config.logoUrl} 
               alt={barbearia?.nome || "Logo"} 
               className="w-full h-full object-contain"
               referrerPolicy="no-referrer"
+              onError={() => setLogoError(true)}
             />
           </div>
         ) : (

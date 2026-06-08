@@ -82,7 +82,9 @@ export const BarbeariaProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           } catch (e) {}
         }
         
-        if (!isBarbeiroLoggedIn) {
+        // On guest client pages (like pages with /agendar or pathnames with slug inputs), we should not reset the active barbearia to null
+        const isClientPage = window.location.pathname.includes('/agendar') || window.location.pathname === '/' || window.location.pathname === '';
+        if (!isBarbeiroLoggedIn && !isClientPage) {
           setBarbearia(null);
         }
         setLoading(false);

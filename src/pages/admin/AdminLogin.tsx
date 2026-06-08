@@ -62,8 +62,8 @@ export default function AdminLogin({ onLogin }: { onLogin: (role: 'ADMIN' | 'BAR
           throw new Error(`Erro ao carregar os dados da barbearia vinculada: ${bError?.message || 'não localizada'}`);
         }
 
-        // We fetch the barbearia to populate context
-        await fetchBySlug(bData.slug);
+        // We fetch the barbearia to populate context in background for instant login feeling
+        fetchBySlug(bData.slug).catch(e => console.error("Error background loading details:", e));
 
         setLoading(false);
         onLogin('BARBEIRO', barb.id);
