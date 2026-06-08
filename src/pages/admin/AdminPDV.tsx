@@ -85,7 +85,7 @@ export default function AdminPDV() {
       
       // 3. Refresh Context Stock
       if (refreshData) {
-        await refreshData();
+        await refreshData(true);
       }
     } catch (err: any) {
       console.error("Erro ao finalizar venda:", err);

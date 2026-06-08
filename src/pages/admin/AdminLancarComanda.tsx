@@ -144,7 +144,7 @@ export default function AdminLancarComanda() {
       setComandaServices([]);
       setComandaPaymentMethod('Pix');
 
-      await refreshData();
+      await refreshData(true);
     } catch (err: any) {
       console.error(err);
       toast.error('Erro ao salvar a comanda.');

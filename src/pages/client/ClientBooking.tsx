@@ -460,50 +460,17 @@ export default function ClientBooking() {
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-[#222] rounded-full flex items-center justify-center text-[#777] overflow-hidden relative border border-[#333]">
-                      {b.photoUrl ? (
-                        <img src={b.photoUrl} alt={b.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                      ) : b.mediaUrl && b.mediaType !== 'video' ? (
-                        <img src={b.mediaUrl} alt={b.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                      ) : (
-                        <img src={DEFAULT_BARBER_PHOTO} alt={b.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                      )}
+                    <div className="w-10 h-10 bg-[#C5A05915] text-[#C5A059] border border-[#C5A05933] rounded-full flex items-center justify-center font-bold text-sm tracking-tighter shrink-0 uppercase">
+                      {b.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2)}
                     </div>
                     <div>
-                      <div className="font-medium text-white">{b.name}</div>
-                      <div className="text-xs text-[#777] mt-1">{b.specialties || 'Barbeiro Clássico'}</div>
+                      <div className="font-semibold text-white text-sm">{b.name}</div>
+                      <div className="text-xs text-[#777] mt-1">{b.specialties || 'Barbeiro Profissional'}</div>
                     </div>
                   </div>
                 </button>
               ))}
             </div>
-
-            {selectedBarber && (
-              (() => {
-                const selBarb = state.barbers.find(x => x.id === selectedBarber);
-                if (!selBarb) return null;
-                
-                const photoToShow = selBarb.photoUrl || (selBarb.mediaType !== 'video' ? selBarb.mediaUrl : '') || DEFAULT_BARBER_PHOTO;
-
-                return (
-                  <div className="mt-6 p-4 bg-[#1A1A1A] border border-[#222] rounded-2xl animate-in fade-in zoom-in-95 duration-300 w-full max-w-[320px] mx-auto">
-                    <h3 className="text-xs uppercase tracking-widest text-[#C5A059] font-bold mb-3 text-center">
-                      Apresentação de {selBarb.name}
-                    </h3>
-                    
-                    <div className="w-full aspect-square max-w-[280px] mx-auto bg-[#121212] rounded-xl overflow-hidden border border-[#333] relative flex items-center justify-center shadow-lg">
-                      <img
-                        src={photoToShow}
-                        alt={selBarb.name}
-                        className="w-full h-full object-cover absolute inset-0"
-                        style={{ objectFit: 'cover' }}
-                        referrerPolicy="no-referrer"
-                      />
-                    </div>
-                  </div>
-                );
-              })()
-            )}
 
             <div className="flex gap-3 mt-8">
               <button

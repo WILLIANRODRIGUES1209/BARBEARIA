@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAppContext } from '../../context/AppContext';
-import { Plus, TrendingUp, TrendingDown, DollarSign, X, Calendar as CalendarIcon, Check, Trash2, Users } from 'lucide-react';
+import { Plus, TrendingUp, TrendingDown, DollarSign, X, Calendar as CalendarIcon, Check, Trash2, Users, RefreshCw } from 'lucide-react';
 import { format, parseISO, startOfMonth, endOfMonth, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import TransactionHistoryList from '../../components/TransactionHistoryList';
 import toast from 'react-hot-toast';
@@ -9,6 +9,34 @@ export default function AdminFinanceiro() {
   const { state, addTransaction, addAppointment, refreshData } = useAppContext();
   const [isAdding, setIsAdding] = useState(false);
   const [newTx, setNewTx] = useState({ description: '', amount: 0, type: 'INCOME' as 'INCOME' | 'EXPENSE' });
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  useEffect(() => {
+    const initFetch = async () => {
+      setIsRefreshing(true);
+      try {
+        await refreshData(true);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsRefreshing(false);
+      }
+    };
+    initFetch();
+  }, []);
+
+  const handleManualRefresh = async () => {
+    setIsRefreshing(true);
+    const loadToast = toast.loading('Buscando novos dados do banco...');
+    try {
+      await refreshData(true);
+      toast.success('Finanças sincronizadas com sucesso!', { id: loadToast });
+    } catch (err: any) {
+      toast.error('Erro ao buscar dados: ' + err.message, { id: loadToast });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   const [dateFilter, setDateFilter] = useState<'ALL' | 'TODAY' | 'MONTH'>('MONTH');
 
@@ -229,13 +257,24 @@ export default function AdminFinanceiro() {
           <button onClick={() => setDateFilter('ALL')} className={`px-4 py-2 text-xs font-bold uppercase tracking-widest rounded transition-colors ${dateFilter === 'ALL' ? 'bg-[#1A1A1A] text-[#C5A059]' : 'text-[#777] hover:text-[#E0E0E0]'}`}>Tudo</button>
         </div>
 
-        <button 
-          onClick={() => setIsAdding(!isAdding)}
-          className="bg-transparent border border-[#C5A059] text-[#C5A059] font-bold px-4 py-2 rounded text-xs uppercase tracking-widest hover:bg-[#C5A05911] flex items-center gap-2 transition-all"
-        >
-          {isAdding ? <X size={16} /> : <Plus size={16} />}
-          {isAdding ? 'Cancelar' : 'Nova Transação'}
-        </button>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={handleManualRefresh}
+            disabled={isRefreshing}
+            className={`px-4 py-2 rounded text-xs font-bold uppercase tracking-widest border border-dashed border-[#C5A059]/40 hover:border-[#C5A059] text-[#C5A059]/90 hover:text-[#C5A059] bg-[#121212] flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50`}
+          >
+            <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
+            {isRefreshing ? 'Sincronizando...' : 'Atualizar'}
+          </button>
+
+          <button 
+            onClick={() => setIsAdding(!isAdding)}
+            className="bg-transparent border border-[#C5A059] text-[#C5A059] font-bold px-4 py-2 rounded text-xs uppercase tracking-widest hover:bg-[#C5A05911] flex items-center gap-2 transition-all cursor-pointer"
+          >
+            {isAdding ? <X size={16} /> : <Plus size={16} />}
+            {isAdding ? 'Cancelar' : 'Nova Transação'}
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
