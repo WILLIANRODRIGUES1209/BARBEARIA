@@ -110,32 +110,32 @@ export default function AdminLancarComanda() {
       const nowIso = new Date().toISOString();
       const firstSvcId = state.services[0]?.id || '1';
 
-      // 1. Create completed appointment for this comanda
-      await addAppointment({
-        clientName,
-        clientPhone: '0000000000',
-        serviceId: firstSvcId,
-        barberId: selectedBarberId,
-        date: nowIso
-      }, 'COMPLETED');
-
-      // 2. Insert corresponding Income Transaction with Barber tag [Barbeiro: ID]
-      await addTransaction({
-        type: 'INCOME',
-        amount: totalGross,
-        description: `Venda PDV - Comanda: ${servicesLabel} (${comandaPaymentMethod}) - Cliente: ${clientName} [Barbeiro: ${selectedBarberId}]`,
-        date: nowIso
-      });
-
-      // 3. Insert corresponding Expense (Out) Transaction for the barber commission
-      if (barberAmount > 0) {
-        await addTransaction({
-          type: 'EXPENSE',
-          amount: barberAmount,
-          description: `Comissão ${activeBarber?.name || 'Barbeiro'} - Comanda: ${servicesLabel} (${activeComissaoPercent}%) [Barbeiro: ${selectedBarberId}]`,
+      // Parallelize Supabase inserts to minimize round-trip latencies
+      await Promise.all([
+        addAppointment({
+          clientName,
+          clientPhone: '0000000000',
+          serviceId: firstSvcId,
+          barberId: selectedBarberId,
           date: nowIso
-        });
-      }
+        }, 'COMPLETED'),
+
+        addTransaction({
+          type: 'INCOME',
+          amount: totalGross,
+          description: `Venda PDV - Comanda: ${servicesLabel} (${comandaPaymentMethod}) - Cliente: ${clientName} [Barbeiro: ${selectedBarberId}]`,
+          date: nowIso
+        }),
+
+        ...(barberAmount > 0 ? [
+          addTransaction({
+            type: 'EXPENSE',
+            amount: barberAmount,
+            description: `Comissão ${activeBarber?.name || 'Barbeiro'} - Comanda: ${servicesLabel} (${activeComissaoPercent}%) [Barbeiro: ${selectedBarberId}]`,
+            date: nowIso
+          })
+        ] : [])
+      ]);
 
       toast.success('Comanda lançada com sucesso!');
 
@@ -144,7 +144,8 @@ export default function AdminLancarComanda() {
       setComandaServices([]);
       setComandaPaymentMethod('Pix');
 
-      await refreshData(true);
+      // Execute data refresh in the background without blocking the UI finalization
+      refreshData(true).catch(e => console.error("Error performing background sync:", e));
     } catch (err: any) {
       console.error(err);
       toast.error('Erro ao salvar a comanda.');

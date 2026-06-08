@@ -83,9 +83,9 @@ export default function AdminPDV() {
       setSelectedClient('');
       setDiscount(0);
       
-      // 3. Refresh Context Stock
+      // 3. Refresh Context Stock in background
       if (refreshData) {
-        await refreshData(true);
+        refreshData(true).catch(e => console.error("Error doing background sync in PDV:", e));
       }
     } catch (err: any) {
       console.error("Erro ao finalizar venda:", err);

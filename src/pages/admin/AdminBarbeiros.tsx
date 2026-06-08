@@ -52,7 +52,13 @@ const compressImage = (file: File, maxWidth = 300, maxHeight = 300, quality = 0.
 };
 
 export default function AdminBarbeiros() {
-  const { state, addBarber, editBarber, deleteBarber } = useAppContext();
+  const { state, addBarber, editBarber, deleteBarber, refreshData } = useAppContext();
+  
+  React.useEffect(() => {
+    if (refreshData) {
+      refreshData(true);
+    }
+  }, []);
   
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);

@@ -5,9 +5,15 @@ import { Users, DollarSign, Calendar, TrendingUp, Copy, Check, ExternalLink } fr
 import { isToday, parseISO } from 'date-fns';
 
 export default function AdminDashboard() {
-  const { state } = useAppContext();
+  const { state, refreshData } = useAppContext();
   const { barbearia } = useBarbearia();
   const [copied, setCopied] = useState(false);
+
+  React.useEffect(() => {
+    if (refreshData) {
+      refreshData(true);
+    }
+  }, []);
 
   const todayAppointments = state.appointments.filter(a => isToday(parseISO(a.date)));
   const completedToday = todayAppointments.filter(a => a.status === 'COMPLETED').length;

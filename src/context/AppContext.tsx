@@ -130,7 +130,7 @@ const mapBarber = (b: any) => {
     mediaType: mediaType,
     photoUrl: photoUrl,
     videoUrl: videoUrl,
-    active: b.ativo,
+    active: b.ativo !== false,
     comissao: b.comissao,
     pin: b.pin,
     acesso: b.acesso
@@ -153,7 +153,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const isAdminPage = window.location.pathname.startsWith('/admin') || window.location.pathname.includes('admin') || window.location.pathname.includes('login');
       const isInitialFetch = state.barbers.length === 0 || state.services.length === 0;
-      const shouldLoadCatalogAndConfig = forceAll || isInitialFetch;
+      const isInitialAdminFetch = isAdminPage && (state.products.length === 0 || state.clients.length === 0);
+      const shouldLoadCatalogAndConfig = forceAll || isInitialFetch || isInitialAdminFetch;
 
       const fetchList: { key: string; promise: any }[] = [];
 

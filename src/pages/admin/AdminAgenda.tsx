@@ -25,8 +25,14 @@ import { loadConfig } from '../../utils/configHelper';
 const WEEKDAYS = ["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"];
 
 export default function AdminAgenda() {
-  const { state, updateAppointmentStatus, payAppointment, addAppointment, addClient } = useAppContext();
+  const { state, updateAppointmentStatus, payAppointment, addAppointment, addClient, refreshData } = useAppContext();
   const { barbearia } = useBarbearia();
+
+  React.useEffect(() => {
+    if (refreshData) {
+      refreshData(true);
+    }
+  }, []);
   
   const [config, setConfig] = useState({
     workStart: "08:00",
