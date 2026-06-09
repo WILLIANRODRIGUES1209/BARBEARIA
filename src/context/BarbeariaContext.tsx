@@ -108,6 +108,17 @@ export const BarbeariaProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           .single();
         if (perfil) {
           barbeariaId = perfil.barbearia_id;
+          
+          // Auto-healing: se o barbearia_id só existia na tabela 'perfis' e não nos metadados JWT do Auth,
+          // atualiza as credenciais do usuário para que os próximos logins e requisições contenham o barbearia_id no token JWT
+          if (barbeariaId) {
+            console.log('Self-healing: atualizando user_metadata do auth com barbearia_id:', barbeariaId);
+            supabase.auth.updateUser({
+              data: { barbearia_id: barbeariaId }
+            }).catch(err => {
+              console.error('Erro ao auto-corrigir metadados do usuário:', err);
+            });
+          }
         }
       }
 

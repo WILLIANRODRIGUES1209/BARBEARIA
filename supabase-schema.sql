@@ -63,6 +63,9 @@ CREATE TABLE barbeiros (
   nome TEXT NOT NULL,
   telefone TEXT,
   ativo BOOLEAN DEFAULT true,
+  comissao NUMERIC DEFAULT 50,
+  pin TEXT,
+  acesso TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -129,17 +132,31 @@ CREATE OR REPLACE FUNCTION get_user_barbearia_id()
 RETURNS uuid AS $$
 DECLARE
   jwt_val text;
+  profile_barbearia_id uuid;
 BEGIN
-  -- Tenta pegar do app_metadata
+  -- 1. Tenta obter de 'app_metadata' no JWT
   jwt_val := auth.jwt() -> 'app_metadata' ->> 'barbearia_id';
   IF jwt_val IS NOT NULL THEN
     RETURN jwt_val::uuid;
   END IF;
 
-  -- Tenta pegar do user_metadata
+  -- 2. Tenta obter de 'user_metadata' no JWT
   jwt_val := auth.jwt() -> 'user_metadata' ->> 'barbearia_id';
   IF jwt_val IS NOT NULL THEN
     RETURN jwt_val::uuid;
+  END IF;
+
+  -- 3. Fallback: Busca diretamente na tabela public.perfis usando auth.uid()
+  -- Usamos SECURITY DEFINER para garantir acesso bypassando RLS recursivo nessa leitura específica.
+  IF auth.uid() IS NOT NULL THEN
+    SELECT barbearia_id INTO profile_barbearia_id 
+    FROM public.perfis 
+    WHERE id = auth.uid() 
+    LIMIT 1;
+    
+    IF profile_barbearia_id IS NOT NULL THEN
+      RETURN profile_barbearia_id;
+    END IF;
   END IF;
 
   RETURN NULL;
@@ -147,7 +164,7 @@ EXCEPTION
   WHEN OTHERS THEN
     RETURN NULL;
 END;
-$$ LANGUAGE plpgsql STABLE;
+$$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
 
 -- Barbearias
 CREATE POLICY "Barbearias: select own" ON barbearias FOR SELECT USING (id = get_user_barbearia_id());
@@ -173,6 +190,7 @@ CREATE POLICY "Clientes: isolation" ON clientes FOR ALL USING (barbearia_id = ge
 -- Agendamentos
 CREATE POLICY "Agendamentos: isolation" ON agendamentos FOR ALL USING (barbearia_id = get_user_barbearia_id());
 CREATE POLICY "Agendamentos: public insert" ON agendamentos FOR INSERT WITH CHECK (true);
+CREATE POLICY "Agendamentos: public select" ON agendamentos FOR SELECT USING (true);
 
 -- Produtos
 CREATE POLICY "Produtos: isolation" ON produtos FOR ALL USING (barbearia_id = get_user_barbearia_id());
