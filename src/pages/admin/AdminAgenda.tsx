@@ -165,28 +165,69 @@ export default function AdminAgenda() {
 
   // Handlers
   const findIncomeTransactionForAppointment = (appt: Appointment) => {
+    // 1. Direct Match: Check by unique reference id
+    const directRefMatch = state.transactions.find(t => 
+      t.type === 'INCOME' && (
+        t.description.includes(`Ref: ${appt.id}`) || 
+        t.description.includes(`ref: ${appt.id}`) ||
+        t.description.includes(appt.id)
+      )
+    );
+    if (directRefMatch) return directRefMatch;
+
+    // Helper for case-insensitive, accent-insensitive normalized comparison
+    const normalizeStr = (str: string) => 
+      str ? str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim() : "";
+
+    const normClientAppt = normalizeStr(appt.clientName);
+    const barber = state.barbers.find(b => b.id === appt.barberId);
+    const normBarberName = barber ? normalizeStr(barber.name) : "";
+
+    // Parse appointment date to local YYYY-MM-DD
+    const apptDateStr = new Date(appt.date).toISOString().split('T')[0];
+
+    // Find all INCOME transactions of the SAME day
+    const sameDayIncomes = state.transactions.filter(t => {
+      if (t.type !== 'INCOME') return false;
+      const tDateStr = new Date(t.date).toISOString().split('T')[0];
+      return tDateStr === apptDateStr;
+    });
+
+    // 2. Exact match on same day: same client and same barber
+    const perfectSameDayMatch = sameDayIncomes.find(t => {
+      const normDesc = normalizeStr(t.description);
+      const clientMatches = normDesc.includes(normClientAppt) || appt.clientName === 'Cliente Avulso' || normClientAppt.includes('avulso');
+      const barberMatches = !appt.barberId || 
+                            (normBarberName && normDesc.includes(normBarberName)) || 
+                            t.description.includes(`[Barbeiro: ${appt.barberId}]`) ||
+                            t.description.includes(`[Barbeiro: ${appt.barberId?.toLowerCase()}]`);
+      return clientMatches && barberMatches;
+    });
+
+    if (perfectSameDayMatch) return perfectSameDayMatch;
+
+    // 3. Fallback: Any same day income transaction mentioning the client's name or "Comanda"
+    const fallbackSameDayMatch = sameDayIncomes.find(t => {
+      const normDesc = normalizeStr(t.description);
+      return normDesc.includes(normClientAppt) || (appt.clientName === 'Cliente Avulso' && normDesc.includes('comanda'));
+    });
+
+    if (fallbackSameDayMatch) return fallbackSameDayMatch;
+
+    // 4. Last resort: Check transactions in surrounding 1 day window
+    const apptTime = new Date(appt.date).getTime();
     return state.transactions.find(t => {
       if (t.type !== 'INCOME') return false;
+      const tTime = new Date(t.date).getTime();
+      const diffMs = Math.abs(tTime - apptTime);
+      if (diffMs > 24 * 60 * 60 * 1000) return false; // Max 24 hours
 
-      // a. Agenda reference check
-      if (t.description.includes(`Ref: ${appt.id}`)) {
-        return true;
-      }
-
-      // b. PDV check out check or Comanda tagging check [Barbeiro: ID]
-      if (t.description.includes('Venda PDV')) {
-        const barber = state.barbers.find(b => b.id === appt.barberId);
-        const isOurBarber = (barber && t.description.includes(barber.name || '---')) || t.description.includes(`[Barbeiro: ${appt.barberId}]`);
-        if (!isOurBarber) return false;
-
-        const tTime = new Date(t.date).getTime();
-        const aTime = new Date(appt.date).getTime();
-        if (Math.abs(tTime - aTime) <= 15000 && (t.description.includes(appt.clientName) || appt.clientName === 'Cliente Avulso' || t.description.includes('Comanda:'))) {
-          return true;
-        }
-      }
-
-      return false;
+      const normDesc = normalizeStr(t.description);
+      const clientMatches = normDesc.includes(normClientAppt) || appt.clientName === 'Cliente Avulso' || normClientAppt.includes('avulso');
+      const barberMatches = !appt.barberId || 
+                            (normBarberName && normDesc.includes(normBarberName)) || 
+                            t.description.includes(`[Barbeiro: ${appt.barberId}]`);
+      return clientMatches && barberMatches;
     });
   };
 
@@ -267,7 +308,7 @@ export default function AdminAgenda() {
       setDetailsModalOpen(false);
     } catch (err: any) {
       console.error("Erro ao atualizar valor de corte concluído:", err);
-      toast.error("Falha ao salvar as alterações de valor.");
+      toast.error(`Falha ao salvar as alterações de valor: ${err?.message || err?.details || JSON.stringify(err) || err}`);
     } finally {
       setIsSavingPrice(false);
     }

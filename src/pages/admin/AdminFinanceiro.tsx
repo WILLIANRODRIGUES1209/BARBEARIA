@@ -78,7 +78,9 @@ export default function AdminFinanceiro() {
          if (paymentMethodFilter === 'PIX') {
            if (!desc.includes('PIX')) return false;
          } else if (paymentMethodFilter === 'Cartão de Crédito') {
-           if (!desc.includes('CREDITO') && !desc.includes('CRÉDITO')) return false;
+           const matchesCredit = desc.includes('CREDITO') || desc.includes('CRÉDITO') || 
+                                 ((desc.includes('CARTÃO') || desc.includes('CARTAO')) && !desc.includes('DEBITO') && !desc.includes('DÉBITO'));
+           if (!matchesCredit) return false;
          } else if (paymentMethodFilter === 'Cartão de Débito') {
            if (!desc.includes('DEBITO') && !desc.includes('DÉBITO')) return false;
          } else if (paymentMethodFilter === 'Dinheiro') {
@@ -225,7 +227,8 @@ export default function AdminFinanceiro() {
       'PIX': incomes.filter(t => t.description.toUpperCase().includes('PIX')).reduce((sum, t) => sum + t.amount, 0),
       'Cartão de Crédito': incomes.filter(t => {
         const desc = t.description.toUpperCase();
-        return desc.includes('CREDITO') || desc.includes('CRÉDITO');
+        return desc.includes('CREDITO') || desc.includes('CRÉDITO') || 
+               ((desc.includes('CARTÃO') || desc.includes('CARTAO')) && !desc.includes('DEBITO') && !desc.includes('DÉBITO'));
       }).reduce((sum, t) => sum + t.amount, 0),
       'Cartão de Débito': incomes.filter(t => {
         const desc = t.description.toUpperCase();
