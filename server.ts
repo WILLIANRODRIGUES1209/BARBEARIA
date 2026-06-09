@@ -155,9 +155,17 @@ async function startServer() {
       if (!supabaseUrl) return;
 
       const now = new Date();
-      const inOneHour = new Date(now.getTime() + 60 * 60 * 1000);
+      // Only fetch pending appointments within a short window centered around now (from 1 hour ago to 2 hours in the future)
+      // This covers the 1-hour notification range perfectly while avoiding expensive full-table scans on a growing multi-tenant DB.
+      const startWindow = new Date(now.getTime() - 60 * 60 * 1000).toISOString();
+      const endWindow = new Date(now.getTime() + 2 * 60 * 60 * 1000).toISOString();
       
-      const { data, error } = await supabase.from('agendamentos').select('*').eq('status', 'PENDENTE');
+      const { data, error } = await supabase
+        .from('agendamentos')
+        .select('*')
+        .eq('status', 'PENDENTE')
+        .gte('data_hora', startWindow)
+        .lte('data_hora', endWindow);
       
       if (data && data.length > 0) {
         data.forEach(appt => {
