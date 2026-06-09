@@ -25,7 +25,7 @@ import { loadConfig } from '../../utils/configHelper';
 const WEEKDAYS = ["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"];
 
 export default function AdminAgenda() {
-  const { state, updateAppointmentStatus, payAppointment, addAppointment, addClient, refreshData } = useAppContext();
+  const { state, updateAppointmentStatus, payAppointment, addAppointment, addClient, refreshData, updateTransaction } = useAppContext();
   const { barbearia } = useBarbearia();
 
   React.useEffect(() => {
@@ -106,6 +106,7 @@ export default function AdminAgenda() {
   // Loading/lock states for anti-duplication / debouncing
   const [isPaying, setIsPaying] = useState(false);
   const [isBooking, setIsBooking] = useState(false);
+  const [isSavingPrice, setIsSavingPrice] = useState(false);
 
   // Form states for Block
   const [blockDate, setBlockDate] = useState(format(new Date(), 'yyyy-MM-dd'));
@@ -165,8 +166,54 @@ export default function AdminAgenda() {
   const handleOpenDetails = (appt: Appointment) => {
     setSelectedAppt(appt);
     const service = state.services.find(s => s.id === appt.serviceId);
-    setCustomPrice(service ? service.price.toFixed(2) : '0.00');
+    
+    // Fallback to default service price, but resolve actual transaction amount if already completed
+    let resolvedPrice = service ? service.price.toFixed(2) : '0.00';
+    if (appt.status === 'COMPLETED') {
+      const incomeTx = state.transactions.find(t => t.type === 'INCOME' && t.description.includes(`Ref: ${appt.id}`));
+      if (incomeTx) {
+        resolvedPrice = incomeTx.amount.toFixed(2);
+      }
+    }
+    
+    setCustomPrice(resolvedPrice);
     setDetailsModalOpen(true);
+  };
+
+  const handleUpdateCompletedPrice = async () => {
+    if (!selectedAppt) return;
+    if (isSavingPrice) return;
+
+    const amt = parseFloat(customPrice);
+    if (isNaN(amt) || amt < 0) {
+      toast.error('Por favor, insira um valor válido.');
+      return;
+    }
+
+    setIsSavingPrice(true);
+    try {
+      // Find the corresponding INCOME transaction
+      const incomeTx = state.transactions.find(t => t.type === 'INCOME' && t.description.includes(`Ref: ${selectedAppt.id}`));
+      
+      if (!incomeTx) {
+        toast.error('Erro: Não foi possível localizar a transação financeira de recebimento deste agendamento.');
+        return;
+      }
+
+      await updateTransaction(incomeTx.id, { amount: amt });
+      
+      if (refreshData) {
+        await refreshData();
+      }
+      
+      toast.success('Valor do corte e comissões atualizados com sucesso!');
+      setDetailsModalOpen(false);
+    } catch (err: any) {
+      console.error("Erro ao atualizar valor de corte concluído:", err);
+      toast.error("Falha ao salvar as alterações de valor.");
+    } finally {
+      setIsSavingPrice(false);
+    }
   };
 
   const handleOpenPay = (id: string) => {
@@ -970,7 +1017,7 @@ export default function AdminAgenda() {
                   {/* Actions */}
                   {isPending && (
                     <div className="flex gap-3 pt-2">
-                      <button
+                       <button
                         onClick={() => handleCancelAppointment(selectedAppt.id)}
                         className="w-1/3 py-4 bg-[#FF3D0011] text-[#FF3D00] border border-[#FF3D0033] rounded-xl uppercase tracking-widest text-[10px] font-bold hover:bg-[#FF3D0022] transition-colors flex flex-col items-center justify-center gap-1"
                       >
@@ -983,6 +1030,19 @@ export default function AdminAgenda() {
                       >
                         <DollarSign size={20} />
                         Receber Pagamento
+                      </button>
+                    </div>
+                  )}
+                  
+                  {!isPending && selectedAppt.status === 'COMPLETED' && (
+                    <div className="pt-2">
+                      <button
+                        onClick={handleUpdateCompletedPrice}
+                        disabled={isSavingPrice}
+                        className="w-full py-4 bg-[#C5A059] text-black font-extrabold text-xs uppercase tracking-widest rounded-xl hover:bg-[#8E6D31] transition-all flex items-center justify-center gap-2"
+                      >
+                        <CheckCircle2 size={16} />
+                        {isSavingPrice ? 'Salvando...' : 'Salvar Alteração de Valor'}
                       </button>
                     </div>
                   )}

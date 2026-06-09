@@ -213,10 +213,10 @@ export default function AdminMeuHistorico() {
       </div>
 
       <div className="bg-[#121212] rounded-2xl border border-[#222] overflow-hidden">
-        <div className="p-6 border-b border-[#222] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-[#161616]">
+        <div className="p-6 border-b border-[#222] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-[#161616]">
           <h2 className="text-lg font-bold text-white">Histórico de Serviços Concluídos</h2>
-          <span className="text-[10px] text-[#777] uppercase tracking-widest font-extrabold">
-            💡 Dica: Toque/clique em qualquer corte para corrigir ou excluir
+          <span className="text-[10px] text-[#777] uppercase tracking-widest font-extrabold text-right">
+            💡 Correções de valores de cortes ou comissões são feitas sob medida na aba Agenda, clicando no agendamento correspondente.
           </span>
         </div>
         
@@ -242,9 +242,7 @@ export default function AdminMeuHistorico() {
                   {agendamentos.map((appt) => (
                     <tr 
                       key={appt.id} 
-                      onClick={() => handleCorteClick(appt)}
-                      className="hover:bg-[#1C1C1C] transition-colors cursor-pointer"
-                      title="Clique para corrigir valor ou excluir"
+                      className="hover:bg-[#161616] transition-colors"
                     >
                       <td className="p-4 text-sm text-[#CCC]">
                         <div className="flex items-center gap-2">
@@ -268,9 +266,8 @@ export default function AdminMeuHistorico() {
             <div className="md:hidden divide-y divide-[#222] p-4 space-y-3">
               {agendamentos.map((appt) => (
                 <div 
-                  key={appt.id} 
-                  onClick={() => handleCorteClick(appt)}
-                  className="bg-[#161616] border border-[#222] p-4 rounded-xl space-y-2 hover:border-[#C5A059] active:scale-[0.98] transition-all cursor-pointer"
+                   key={appt.id} 
+                   className="bg-[#161616] border border-[#222] p-4 rounded-xl space-y-2"
                 >
                   <div className="flex justify-between items-start">
                     <div className="max-w-[60%]">
@@ -290,10 +287,6 @@ export default function AdminMeuHistorico() {
                     <span className="font-semibold text-[#CCC]">
                       Valor: R$ {appt.valorServico.toFixed(2)}
                     </span>
-                  </div>
-                  
-                  <div className="text-[10px] text-[#C5A059] flex items-center justify-end gap-1 pt-1.5 border-t border-[#222] font-semibold uppercase tracking-wider">
-                    <Pencil size={10} /> Toque para ajustar / excluir
                   </div>
                 </div>
               ))}
