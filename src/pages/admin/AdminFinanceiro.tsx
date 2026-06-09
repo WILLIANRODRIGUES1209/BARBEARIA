@@ -74,7 +74,16 @@ export default function AdminFinanceiro() {
       
       // 2. Payment Method Filter (only applies to INCOME)
       if (paymentMethodFilter !== 'ALL' && t.type === 'INCOME') {
-         if (!t.description.includes(paymentMethodFilter)) return false;
+         const desc = t.description.toUpperCase();
+         if (paymentMethodFilter === 'PIX') {
+           if (!desc.includes('PIX')) return false;
+         } else if (paymentMethodFilter === 'Cartão de Crédito') {
+           if (!desc.includes('CREDITO') && !desc.includes('CRÉDITO')) return false;
+         } else if (paymentMethodFilter === 'Cartão de Débito') {
+           if (!desc.includes('DEBITO') && !desc.includes('DÉBITO')) return false;
+         } else if (paymentMethodFilter === 'Dinheiro') {
+           if (!desc.includes('DINHEIRO')) return false;
+         }
       }
 
       return true;
@@ -213,10 +222,16 @@ export default function AdminFinanceiro() {
     const incomes = dateFiltered.filter(t => t.type === 'INCOME');
     
     return {
-      'PIX': incomes.filter(t => t.description.includes('PIX')).reduce((sum, t) => sum + t.amount, 0),
-      'Cartão de Crédito': incomes.filter(t => t.description.includes('Cartão de Crédito')).reduce((sum, t) => sum + t.amount, 0),
-      'Cartão de Débito': incomes.filter(t => t.description.includes('Cartão de Débito')).reduce((sum, t) => sum + t.amount, 0),
-      'Dinheiro': incomes.filter(t => t.description.includes('Dinheiro')).reduce((sum, t) => sum + t.amount, 0),
+      'PIX': incomes.filter(t => t.description.toUpperCase().includes('PIX')).reduce((sum, t) => sum + t.amount, 0),
+      'Cartão de Crédito': incomes.filter(t => {
+        const desc = t.description.toUpperCase();
+        return desc.includes('CREDITO') || desc.includes('CRÉDITO');
+      }).reduce((sum, t) => sum + t.amount, 0),
+      'Cartão de Débito': incomes.filter(t => {
+        const desc = t.description.toUpperCase();
+        return desc.includes('DEBITO') || desc.includes('DÉBITO');
+      }).reduce((sum, t) => sum + t.amount, 0),
+      'Dinheiro': incomes.filter(t => t.description.toUpperCase().includes('DINHEIRO')).reduce((sum, t) => sum + t.amount, 0),
     };
   }, [uniqueTransactions, dateFilter]);
 

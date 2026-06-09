@@ -927,10 +927,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const isCommission = other.description.toLowerCase().includes('comissão') || other.description.toLowerCase().includes('comissao');
         if (!isCommission) return false;
 
-        // Proximity in time: within 10 seconds
+        // Proximity in time: within 60 seconds (60000ms) to ensure robust historic matching under slight database latencies
         const otherTime = new Date(other.date).getTime();
         const timeDiff = Math.abs(targetTime - otherTime);
-        if (timeDiff > 10000) return false;
+        if (timeDiff > 60000) return false;
 
         return true;
       });
@@ -992,10 +992,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const isCommission = other.description.toLowerCase().includes('comissão') || other.description.toLowerCase().includes('comissao');
         if (!isCommission) return false;
 
-        // Proximity in time: within 10 seconds
+        // Proximity in time: within 60 seconds (60000ms) to ensure robust historic matching under slight database latencies
         const otherTime = new Date(other.date).getTime();
         const timeDiff = Math.abs(targetTime - otherTime);
-        if (timeDiff > 10000) return false;
+        if (timeDiff > 60000) return false;
 
         return true;
       });

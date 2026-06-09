@@ -21,6 +21,7 @@ import {
 import { Appointment } from '../../types';
 import toast from 'react-hot-toast';
 import { loadConfig } from '../../utils/configHelper';
+import { supabase } from '../../supabase';
 
 const WEEKDAYS = ["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"];
 
@@ -218,18 +219,48 @@ export default function AdminAgenda() {
 
     setIsSavingPrice(true);
     try {
+      if (!barbearia) {
+        toast.error('Erro: Barbearia ativa não encontrada.');
+        return;
+      }
+
       // Find the corresponding INCOME transaction using robust matching
       const incomeTx = findIncomeTransactionForAppointment(selectedAppt);
       
       if (!incomeTx) {
-        toast.error('Erro: Não foi possível localizar a transação financeira de recebimento deste agendamento.');
-        return;
-      }
+        // Automatically create a new transaction for this completed appointment so they don't have to re-register it manually!
+        const service = state.services.find(s => s.id === selectedAppt.serviceId);
+        const description = service ? service.name : 'Serviço';
+        
+        // Insert ENTRADA record
+        const { error: txError } = await supabase.from('transacoes').insert({
+          barbearia_id: barbearia.id,
+          tipo: 'ENTRADA',
+          valor: amt,
+          descricao: `Serviço recebido via PIX: ${description} (Ref: ${selectedAppt.id})`,
+          data: selectedAppt.date,
+        });
 
-      await updateTransaction(incomeTx.id, { amount: amt });
+        if (txError) throw txError;
+
+        // Also check if barber commission is needed and can be inserted as SAIDA
+        const barber = state.barbers.find(b => b.id === selectedAppt.barberId);
+        if (barber && barber.comissao && barber.comissao > 0) {
+          const comValue = (amt * barber.comissao) / 100;
+          await supabase.from('transacoes').insert({
+            barbearia_id: barbearia.id,
+            tipo: 'SAIDA',
+            valor: comValue,
+            descricao: `Comissão Barbeiro (${barber.name}) - ${description} - ${barber.comissao}%`,
+            data: selectedAppt.date,
+          });
+        }
+      } else {
+        await updateTransaction(incomeTx.id, { amount: amt });
+      }
       
       if (refreshData) {
-        await refreshData();
+        await refreshData(true);
       }
       
       toast.success('Valor do corte e comissões atualizados com sucesso!');
