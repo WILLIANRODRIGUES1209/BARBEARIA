@@ -163,6 +163,32 @@ export default function AdminAgenda() {
   const sortedDays = Object.keys(groupedByDay).sort((a, b) => a.localeCompare(b));
 
   // Handlers
+  const findIncomeTransactionForAppointment = (appt: Appointment) => {
+    return state.transactions.find(t => {
+      if (t.type !== 'INCOME') return false;
+
+      // a. Agenda reference check
+      if (t.description.includes(`Ref: ${appt.id}`)) {
+        return true;
+      }
+
+      // b. PDV check out check or Comanda tagging check [Barbeiro: ID]
+      if (t.description.includes('Venda PDV')) {
+        const barber = state.barbers.find(b => b.id === appt.barberId);
+        const isOurBarber = (barber && t.description.includes(barber.name || '---')) || t.description.includes(`[Barbeiro: ${appt.barberId}]`);
+        if (!isOurBarber) return false;
+
+        const tTime = new Date(t.date).getTime();
+        const aTime = new Date(appt.date).getTime();
+        if (Math.abs(tTime - aTime) <= 15000 && (t.description.includes(appt.clientName) || appt.clientName === 'Cliente Avulso' || t.description.includes('Comanda:'))) {
+          return true;
+        }
+      }
+
+      return false;
+    });
+  };
+
   const handleOpenDetails = (appt: Appointment) => {
     setSelectedAppt(appt);
     const service = state.services.find(s => s.id === appt.serviceId);
@@ -170,7 +196,7 @@ export default function AdminAgenda() {
     // Fallback to default service price, but resolve actual transaction amount if already completed
     let resolvedPrice = service ? service.price.toFixed(2) : '0.00';
     if (appt.status === 'COMPLETED') {
-      const incomeTx = state.transactions.find(t => t.type === 'INCOME' && t.description.includes(`Ref: ${appt.id}`));
+      const incomeTx = findIncomeTransactionForAppointment(appt);
       if (incomeTx) {
         resolvedPrice = incomeTx.amount.toFixed(2);
       }
@@ -192,8 +218,8 @@ export default function AdminAgenda() {
 
     setIsSavingPrice(true);
     try {
-      // Find the corresponding INCOME transaction
-      const incomeTx = state.transactions.find(t => t.type === 'INCOME' && t.description.includes(`Ref: ${selectedAppt.id}`));
+      // Find the corresponding INCOME transaction using robust matching
+      const incomeTx = findIncomeTransactionForAppointment(selectedAppt);
       
       if (!incomeTx) {
         toast.error('Erro: Não foi possível localizar a transação financeira de recebimento deste agendamento.');
