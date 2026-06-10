@@ -1,5 +1,6 @@
 import React, { useMemo, useEffect, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
+import { useBarbearia } from '../../context/BarbeariaContext';
 import { DollarSign, Scissors, Calendar as CalendarIcon, RefreshCw, Pencil, Trash2, X, Check } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -10,6 +11,7 @@ import { supabase } from '../../supabase';
 
 export default function AdminMeuHistorico() {
   const { state, refreshData, updateTransaction, deleteTransaction, addAppointment, addTransaction } = useAppContext();
+  const { barbearia } = useBarbearia();
   const [selectedCorte, setSelectedCorte] = useState<any | null>(null);
   const [editAmount, setEditAmount] = useState<number>(0);
   const [isSubmittingModal, setIsSubmittingModal] = useState<boolean>(false);
@@ -141,7 +143,7 @@ export default function AdminMeuHistorico() {
         // No transaction exists yet, let's create it dynamically!
         const authData = sessionStorage.getItem('app_auth_state');
         const authState = authData ? JSON.parse(authData) : null;
-        const barbeariaId = authState?.barbeariaId;
+        const barbeariaId = barbearia?.id || authState?.barbeariaId;
         
         if (!barbeariaId) {
           toast.error('Erro de permissão: Barbearia não identificada.');
