@@ -8,6 +8,7 @@ import TransactionHistoryList from '../../components/TransactionHistoryList';
 import { confirmUI } from '../../utils/confirmUI';
 import toast from 'react-hot-toast';
 import { supabase } from '../../supabase';
+import RlsHelpModal from '../../components/RlsHelpModal';
 
 export default function AdminMeuHistorico() {
   const { state, refreshData, updateTransaction, deleteTransaction, addAppointment, addTransaction } = useAppContext();
@@ -15,6 +16,7 @@ export default function AdminMeuHistorico() {
   const [selectedCorte, setSelectedCorte] = useState<any | null>(null);
   const [editAmount, setEditAmount] = useState<number>(0);
   const [isSubmittingModal, setIsSubmittingModal] = useState<boolean>(false);
+  const [rlsHelpOpen, setRlsHelpOpen] = useState<boolean>(false);
 
   useEffect(() => {
     refreshData();
@@ -183,7 +185,17 @@ export default function AdminMeuHistorico() {
       setSelectedCorte(null);
     } catch (err: any) {
       console.error(err);
-      toast.error(`Erro ao atualizar corte: ${err?.message || 'Erro de permissão'}`);
+      const isRlsError = err?.message?.toLowerCase().includes('row-level security') || 
+                         err?.message?.toLowerCase().includes('security policy') ||
+                         err?.code === '42501' || 
+                         JSON.stringify(err).toLowerCase().includes('security policy') ||
+                         JSON.stringify(err).toLowerCase().includes('violates');
+                         
+      if (isRlsError) {
+        setRlsHelpOpen(true);
+      } else {
+        toast.error(`Erro ao atualizar corte: ${err?.message || 'Erro de permissão'}`);
+      }
     } finally {
       setIsSubmittingModal(false);
     }
@@ -439,6 +451,11 @@ export default function AdminMeuHistorico() {
           </div>
         </div>
       )}
+      
+      <RlsHelpModal 
+        isOpen={rlsHelpOpen} 
+        onClose={() => setRlsHelpOpen(false)} 
+      />
     </div>
   );
 }

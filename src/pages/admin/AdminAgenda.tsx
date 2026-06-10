@@ -22,12 +22,14 @@ import { Appointment } from '../../types';
 import toast from 'react-hot-toast';
 import { loadConfig } from '../../utils/configHelper';
 import { supabase } from '../../supabase';
+import RlsHelpModal from '../../components/RlsHelpModal';
 
 const WEEKDAYS = ["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"];
 
 export default function AdminAgenda() {
   const { state, updateAppointmentStatus, payAppointment, addAppointment, addClient, refreshData, updateTransaction } = useAppContext();
   const { barbearia } = useBarbearia();
+  const [rlsHelpOpen, setRlsHelpOpen] = useState(false);
 
   React.useEffect(() => {
     if (refreshData) {
@@ -308,7 +310,17 @@ export default function AdminAgenda() {
       setDetailsModalOpen(false);
     } catch (err: any) {
       console.error("Erro ao atualizar valor de corte concluído:", err);
-      toast.error(`Falha ao salvar as alterações de valor: ${err?.message || err?.details || JSON.stringify(err) || err}`);
+      const isRlsError = err?.message?.toLowerCase().includes('row-level security') || 
+                         err?.message?.toLowerCase().includes('security policy') ||
+                         err?.code === '42501' || 
+                         JSON.stringify(err).toLowerCase().includes('security policy') ||
+                         JSON.stringify(err).toLowerCase().includes('violates');
+                         
+      if (isRlsError) {
+        setRlsHelpOpen(true);
+      } else {
+        toast.error(`Falha ao salvar as alterações de valor: ${err?.message || err?.details || JSON.stringify(err) || err}`);
+      }
     } finally {
       setIsSavingPrice(false);
     }
@@ -1393,6 +1405,8 @@ export default function AdminAgenda() {
           </div>
         </div>
       )}
+      
+      <RlsHelpModal isOpen={rlsHelpOpen} onClose={() => setRlsHelpOpen(false)} />
     </div>
   );
 }

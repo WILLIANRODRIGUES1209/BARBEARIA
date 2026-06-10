@@ -973,6 +973,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.error(err);
       toast.error('Erro ao atualizar transação.');
       await refreshData();
+      throw err;
     }
   };
 
