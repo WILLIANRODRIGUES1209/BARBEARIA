@@ -117,93 +117,76 @@ export default function AdminFinanceiro() {
 
   const barberFinances = useMemo(() => {
     return state.barbers.map(barber => {
-      const appts = filteredAppointments.filter(a => a.barberId === barber.id);
-      
-      let totalAmount = 0;
-      let commissionAmount = 0;
-      const comPercent = barber.comissao || 0;
-
-      appts.forEach(appt => {
-        const service = state.services.find(s => s.id === appt.serviceId);
-        const defaultServicePrice = service?.price || 0;
+      // Find all transactions directly linked or related to this barber
+      const barberTransactions = filteredTransactions.filter(t => {
+        // 1. Direct tag check
+        if (t.description.includes(`[Barbeiro: ${barber.id}]`)) {
+          return true;
+        }
         
-        // 1. Try to find corresponding INCOME transaction
-        const incomeTx = uniqueTransactions.find(t => {
-          if (t.type !== 'INCOME') return false;
-          
-          // a. Agenda reference check
-          if (t.description.includes(`Ref: ${appt.id}`)) {
+        // 2. Reference check via appointment
+        const match = t.description.match(/Ref:\s*([^\s)]+)/);
+        if (match) {
+          const appointmentId = match[1];
+          const appt = state.appointments.find(a => a.id === appointmentId);
+          if (appt && appt.barberId === barber.id) {
             return true;
           }
-          
-          // b. PDV checkout or Comanda tagging check
-          if (t.description.includes('Venda PDV')) {
-            const isOurBarber = t.description.includes(barber.name || '---') || t.description.includes(`[Barbeiro: ${barber.id}]`);
-            if (!isOurBarber) return false;
-
-            const tTime = new Date(t.date).getTime();
-            const aTime = new Date(appt.date).getTime();
-            if (Math.abs(tTime - aTime) <= 15000 && (t.description.includes(appt.clientName) || appt.clientName === 'Cliente Avulso' || t.description.includes('Comanda:'))) {
+        }
+        
+        // 3. Name fallback check for Commissions (expense)
+        if (t.type === 'EXPENSE') {
+          const descLower = t.description.toLowerCase();
+          const cleanBarberName = barber.name.toLowerCase().trim();
+          if (descLower.includes('comissão') || descLower.includes('comissao')) {
+            if (cleanBarberName && (descLower.includes(cleanBarberName) || descLower.includes(`(${cleanBarberName})`))) {
               return true;
             }
           }
-          
-          return false;
-        });
-
-        // 2. Try to find corresponding commission transaction
-        let commissionTx = null;
-        if (incomeTx) {
-          commissionTx = uniqueTransactions.find(other => {
-            if (other.type !== 'EXPENSE') return false;
-            const isCommission = other.description.toLowerCase().includes('comissão') || other.description.toLowerCase().includes('comissao');
-            if (!isCommission) return false;
-            
-            const sharesBarberTag = other.description.includes(`[Barbeiro: ${barber.id}]`);
-            const targetTime = new Date(incomeTx.date).getTime();
-            const otherTime = new Date(other.date).getTime();
-            
-            if (sharesBarberTag) {
-              return Math.abs(targetTime - otherTime) <= 15000;
-            }
-            return Math.abs(targetTime - otherTime) <= 15000;
-          });
         }
 
-        // 3. Determine actual service value and commission value
-        let valorComissao = 0;
-        let valorServico = defaultServicePrice;
-
-        if (commissionTx) {
-          valorComissao = commissionTx.amount;
-          if (comPercent > 0) {
-            valorServico = (valorComissao * 100) / comPercent;
-          } else if (incomeTx) {
-            valorServico = incomeTx.amount;
-          }
-        } else if (incomeTx) {
-          valorServico = incomeTx.amount;
-          valorComissao = (valorServico * comPercent) / 100;
-        } else {
-          valorServico = defaultServicePrice;
-          valorComissao = (valorServico * comPercent) / 100;
-        }
-
-        totalAmount += valorServico;
-        commissionAmount += valorComissao;
+        return false;
       });
 
-      const netAmount = totalAmount - commissionAmount;
+      const incomeTxs = barberTransactions.filter(t => t.type === 'INCOME');
+      const expenseTxs = barberTransactions.filter(t => t.type === 'EXPENSE');
+
+      let gross = incomeTxs.reduce((sum, t) => sum + t.amount, 0);
+      let commission = expenseTxs.reduce((sum, t) => sum + t.amount, 0);
+      let count = incomeTxs.length;
+
+      // Fallback: If there are completed appointments in the active filter range 
+      // check if any of them are not accounted for in incomeTxs
+      const apptsOfBarber = filteredAppointments.filter(a => a.barberId === barber.id);
+      apptsOfBarber.forEach(appt => {
+        const isRepresented = incomeTxs.some(t => 
+          t.description.includes(`Ref: ${appt.id}`) ||
+          (t.description.includes('Venda PDV') && Math.abs(new Date(t.date).getTime() - new Date(appt.date).getTime()) <= 45000)
+        );
+        
+        if (!isRepresented) {
+          const service = state.services.find(s => s.id === appt.serviceId);
+          const price = service?.price || 0;
+          const comPercent = barber.comissao || 0;
+          const comm = (price * comPercent) / 100;
+          
+          gross += price;
+          commission += comm;
+          count += 1;
+        }
+      });
+
+      const net = gross - commission;
 
       return {
         barber,
-        count: appts.length,
-        gross: totalAmount,
-        commission: commissionAmount,
-        net: netAmount
+        count,
+        gross,
+        commission,
+        net
       };
     });
-  }, [state.barbers, filteredAppointments, state.services, uniqueTransactions]);
+  }, [state.barbers, filteredAppointments, state.services, filteredTransactions, state.appointments]);
 
   const totalIncome = filteredTransactions.filter(t => t.type === 'INCOME').reduce((acc, t) => acc + t.amount, 0);
   const totalExpense = filteredTransactions.filter(t => t.type === 'EXPENSE').reduce((acc, t) => acc + t.amount, 0);

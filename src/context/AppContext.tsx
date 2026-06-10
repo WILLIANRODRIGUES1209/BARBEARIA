@@ -635,13 +635,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }));
 
     try {
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const validServiceId = appt.serviceId && uuidRegex.test(appt.serviceId) ? appt.serviceId : null;
+      const validBarberId = appt.barberId && uuidRegex.test(appt.barberId) ? appt.barberId : null;
+
       const { error } = await supabase.from('agendamentos').insert({
         id: appointmentId,
         barbearia_id: barbearia.id,
         cliente_nome: appt.clientName,
         cliente_telefone: appt.clientPhone,
-        servico_id: appt.serviceId || null,
-        barbeiro_id: appt.barberId,
+        servico_id: validServiceId,
+        barbeiro_id: validBarberId,
         data_hora: appt.date,
         status: initialStatus === 'COMPLETED' ? 'CONCLUIDO' : (initialStatus === 'PENDING' ? 'PENDENTE' : 'CANCELADO'),
       });
