@@ -6,6 +6,7 @@ import { ptBR } from 'date-fns/locale';
 import TransactionHistoryList from '../../components/TransactionHistoryList';
 import { confirmUI } from '../../utils/confirmUI';
 import toast from 'react-hot-toast';
+import { supabase } from '../../supabase';
 
 export default function AdminMeuHistorico() {
   const { state, refreshData, updateTransaction, deleteTransaction, addAppointment, addTransaction } = useAppContext();
@@ -120,28 +121,67 @@ export default function AdminMeuHistorico() {
   const totalCortes = agendamentos.length;
 
   const handleCorteClick = (appt: any) => {
-    if (!appt.incomeTx) {
-      toast.error('Este corte não possui transação financeira registrada para edição direta.');
-      return;
-    }
     setSelectedCorte(appt);
     setEditAmount(appt.valorServico);
   };
 
   const handleSaveModal = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedCorte || !selectedCorte.incomeTx) return;
+    if (!selectedCorte) return;
     if (editAmount < 0) return;
 
     setIsSubmittingModal(true);
     try {
-      await updateTransaction(selectedCorte.incomeTx.id, {
-        amount: editAmount
-      });
+      if (selectedCorte.incomeTx) {
+        await updateTransaction(selectedCorte.incomeTx.id, {
+          amount: editAmount
+        });
+        toast.success('Valor atualizado com sucesso!');
+      } else {
+        // No transaction exists yet, let's create it dynamically!
+        const authData = sessionStorage.getItem('app_auth_state');
+        const authState = authData ? JSON.parse(authData) : null;
+        const barbeariaId = authState?.barbeariaId;
+        
+        if (!barbeariaId) {
+          toast.error('Erro de permissão: Barbearia não identificada.');
+          return;
+        }
+
+        const incomeDesc = `Serviço recebido: ${selectedCorte.serviceName} (Ref: ${selectedCorte.id})`;
+        const apptDateIso = selectedCorte.date || new Date().toISOString();
+
+        // 1. Insert INCOME record
+        const { data: newIncome, error: incError } = await supabase.from('transacoes').insert({
+          barbearia_id: barbeariaId,
+          tipo: 'ENTRADA',
+          valor: editAmount,
+          descricao: incomeDesc,
+          data: apptDateIso
+        }).select().single();
+
+        if (incError) throw incError;
+
+        // 2. Insert Commission EXPENSE record if applicable
+        if (comissaoPercent > 0) {
+          const comValue = (editAmount * comissaoPercent) / 100;
+          const { error: expError } = await supabase.from('transacoes').insert({
+            barbearia_id: barbeariaId,
+            tipo: 'SAIDA',
+            valor: comValue,
+            descricao: `Comissão Barbeiro (${barbeiro?.name || 'Barbeiro'}) - ${selectedCorte.serviceName} - ${comissaoPercent}%`,
+            data: apptDateIso
+          });
+          if (expError) console.error('Erro ao salvar comissão para corte recriado:', expError);
+        }
+
+        toast.success('Transação financeira criada e atualizada com sucesso!');
+        await refreshData();
+      }
       setSelectedCorte(null);
     } catch (err: any) {
       console.error(err);
-      toast.error('Erro ao atualizar corte.');
+      toast.error(`Erro ao atualizar corte: ${err?.message || 'Erro de permissão'}`);
     } finally {
       setIsSubmittingModal(false);
     }
@@ -155,6 +195,7 @@ export default function AdminMeuHistorico() {
         setIsSubmittingModal(true);
         try {
           await deleteTransaction(selectedCorte.incomeTx.id);
+          toast.success('Lançamentos excluídos com sucesso!');
           setSelectedCorte(null);
         } catch (err: any) {
           console.error(err);
@@ -216,7 +257,7 @@ export default function AdminMeuHistorico() {
         <div className="p-6 border-b border-[#222] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-[#161616]">
           <h2 className="text-lg font-bold text-white">Histórico de Serviços Concluídos</h2>
           <span className="text-[10px] text-[#777] uppercase tracking-widest font-extrabold text-right">
-            💡 Correções de valores de cortes ou comissões são feitas sob medida na aba Agenda, clicando no agendamento correspondente.
+            💡 Clique em 'Editar Valor' ao lado de qualquer corte para corrigir o valor recebido e a comissão correspondente em todo o sistema.
           </span>
         </div>
         
@@ -236,6 +277,7 @@ export default function AdminMeuHistorico() {
                     <th className="p-4 text-xs font-medium text-[#777] uppercase tracking-wider">Serviço</th>
                     <th className="p-4 text-xs font-medium text-[#777] uppercase tracking-wider">Valor do Serviço</th>
                     <th className="p-4 text-xs font-medium text-emerald-500 uppercase tracking-wider w-32 border-l border-[#222]">Sua Comissão</th>
+                    <th className="p-4 text-xs font-medium text-[#777] uppercase tracking-wider text-center w-28 border-l border-[#222]">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#222]">
@@ -255,6 +297,17 @@ export default function AdminMeuHistorico() {
                       <td className="p-4 text-sm text-[#CCC]">R$ {appt.valorServico.toFixed(2)}</td>
                       <td className="p-4 text-sm text-emerald-500 font-bold border-l border-[#222]">
                         + R$ {appt.valorComissao.toFixed(2)}
+                      </td>
+                      <td className="p-4 border-l border-[#222]">
+                        <div className="flex justify-center">
+                          <button
+                            onClick={() => handleCorteClick(appt)}
+                            className="flex items-center gap-1 px-2.5 py-1.5 bg-[#C5A059]/10 hover:bg-[#C5A059]/30 border border-[#C5A059]/30 hover:border-[#C5A059] text-[#C5A059] rounded-xl text-xs font-bold transition-all cursor-pointer"
+                          >
+                            <Pencil size={12} />
+                            Editar Valor
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -287,6 +340,16 @@ export default function AdminMeuHistorico() {
                     <span className="font-semibold text-[#CCC]">
                       Valor: R$ {appt.valorServico.toFixed(2)}
                     </span>
+                  </div>
+
+                  <div className="flex justify-end pt-2 border-t border-[#222]/30 mt-1">
+                    <button
+                      onClick={() => handleCorteClick(appt)}
+                      className="flex items-center gap-1 px-3 py-1 bg-[#C5A059]/10 hover:bg-[#C5A059]/30 border border-[#C5A059]/30 text-[#C5A059] rounded-lg text-xs font-bold transition-all cursor-pointer"
+                    >
+                      <Pencil size={11} />
+                      Editar Valor
+                    </button>
                   </div>
                 </div>
               ))}
