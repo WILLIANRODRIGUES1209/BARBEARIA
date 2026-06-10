@@ -124,12 +124,40 @@ export const BarbeariaProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       if (!barbeariaId) {
         console.warn('Barbearia ID não encontrado nos metadados ou perfil. Tentando carregar a primeira barbearia do banco de fallback...');
-        const { data: listBarbs } = await supabase
+        const { data: listBarbs, error: selectBarbsError } = await supabase
           .from('barbearias')
           .select('id, nome, slug')
           .limit(1);
+          
         if (listBarbs && listBarbs.length > 0) {
           barbeariaId = listBarbs[0].id;
+        } else if (!selectBarbsError) {
+          // A tabela no banco existe, mas possui 0 linhas. Vamos criar uma barbearia padrão de auto-healing para este usuário
+          console.log('Nenhuma barbearia encontrada. Criando barbearia padrão de auto-healing...');
+          const { data: newBarb } = await supabase
+            .from('barbearias')
+            .insert({ nome: 'Barbearia do Fenômeno', slug: 'fenomeno' })
+            .select('id, nome, slug')
+            .maybeSingle();
+
+          if (newBarb) {
+            barbeariaId = newBarb.id;
+            
+            // Tenta criar o perfil de admin correspondente
+            await supabase
+              .from('perfis')
+              .insert({
+                id: currentUser.id,
+                barbearia_id: barbeariaId,
+                full_name: currentUser.user_metadata?.full_name || 'Administrador',
+                role: 'admin'
+              });
+
+            // Atualiza os metadados do Auth
+            await supabase.auth.updateUser({
+              data: { barbearia_id: barbeariaId }
+            }).catch(e => console.error("Erro ao atualizar user metadata de auto-healing:", e));
+          }
         }
       }
 

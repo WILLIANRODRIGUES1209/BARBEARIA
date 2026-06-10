@@ -148,7 +148,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const { barbearia, user } = useBarbearia();
 
   const refreshData = async (forceAll = false) => {
-    if (!barbearia) return;
+    if (!barbearia) {
+      try {
+        const { error } = await supabase.from('barbearias').select('id').limit(1);
+        setState(prev => ({ ...prev, isConnected: !error }));
+      } catch (e) {
+        setState(prev => ({ ...prev, isConnected: false }));
+      }
+      return;
+    }
     const start = performance.now();
     try {
       const isAdminPage = window.location.pathname.startsWith('/admin') || window.location.pathname.includes('admin') || window.location.pathname.includes('login');
