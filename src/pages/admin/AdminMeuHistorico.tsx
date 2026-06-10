@@ -33,8 +33,10 @@ export default function AdminMeuHistorico() {
   const agendamentos = useMemo(() => {
     if (!currentBarbeiroId) return [];
     
+    const barberIdLower = currentBarbeiroId.toLowerCase();
+    
     return state.appointments
-      .filter(a => a.barberId === currentBarbeiroId && a.status === 'COMPLETED')
+      .filter(a => a.barberId?.toLowerCase() === barberIdLower && a.status === 'COMPLETED')
       .map(appt => {
         const service = state.services.find(s => s.id === appt.serviceId);
         const defaultServicePrice = service?.price || 0;
@@ -43,19 +45,21 @@ export default function AdminMeuHistorico() {
         const incomeTx = state.transactions.find(t => {
           if (t.type !== 'INCOME') return false;
           
+          const descLower = t.description.toLowerCase();
+          
           // a. Agenda reference check
-          if (t.description.includes(`Ref: ${appt.id}`)) {
+          if (descLower.includes(`ref: ${appt.id.toLowerCase()}`)) {
             return true;
           }
           
           // b. PDV check out check or Comanda tagging check [Barbeiro: ID]
-          if (t.description.includes('Venda PDV')) {
-            const isOurBarber = t.description.includes(barbeiro?.name || '---') || t.description.includes(`[Barbeiro: ${currentBarbeiroId}]`);
+          if (descLower.includes('venda pdv')) {
+            const isOurBarber = descLower.includes((barbeiro?.name || '---').toLowerCase()) || descLower.includes(`[barbeiro: ${barberIdLower}]`);
             if (!isOurBarber) return false;
 
             const tTime = new Date(t.date).getTime();
             const aTime = new Date(appt.date).getTime();
-            if (Math.abs(tTime - aTime) <= 15000 && (t.description.includes(appt.clientName) || appt.clientName === 'Cliente Avulso' || t.description.includes('Comanda:'))) {
+            if (Math.abs(tTime - aTime) <= 15000 && (descLower.includes(appt.clientName.toLowerCase()) || appt.clientName === 'Cliente Avulso' || descLower.includes('comanda:'))) {
               return true;
             }
           }
@@ -68,11 +72,13 @@ export default function AdminMeuHistorico() {
         if (incomeTx) {
           commissionTx = state.transactions.find(other => {
             if (other.type !== 'EXPENSE') return false;
-            const isCommission = other.description.toLowerCase().includes('comissão') || other.description.toLowerCase().includes('comissao');
+            
+            const descLower = other.description.toLowerCase();
+            const isCommission = descLower.includes('comissão') || descLower.includes('comissao');
             if (!isCommission) return false;
             
             // Check matching ID tag if present, else fall back to proximity
-            const sharesBarberTag = other.description.includes(`[Barbeiro: ${currentBarbeiroId}]`);
+            const sharesBarberTag = descLower.includes(`[barbeiro: ${barberIdLower}]`);
             const targetTime = new Date(incomeTx.date).getTime();
             const otherTime = new Date(other.date).getTime();
             

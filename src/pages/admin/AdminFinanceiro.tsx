@@ -117,26 +117,28 @@ export default function AdminFinanceiro() {
 
   const barberFinances = useMemo(() => {
     return state.barbers.map(barber => {
+      const targetBarberIdLower = barber.id.toLowerCase();
       // Find all transactions directly linked or related to this barber
       const barberTransactions = filteredTransactions.filter(t => {
+        const descLower = t.description.toLowerCase();
+        
         // 1. Direct tag check
-        if (t.description.includes(`[Barbeiro: ${barber.id}]`)) {
+        if (descLower.includes(`[barbeiro: ${targetBarberIdLower}]`)) {
           return true;
         }
         
         // 2. Reference check via appointment
-        const match = t.description.match(/Ref:\s*([^\s)]+)/);
+        const match = t.description.match(/Ref:\s*([^\s)]+)/i);
         if (match) {
           const appointmentId = match[1];
-          const appt = state.appointments.find(a => a.id === appointmentId);
-          if (appt && appt.barberId === barber.id) {
+          const appt = state.appointments.find(a => a.id.toLowerCase() === appointmentId.toLowerCase());
+          if (appt && appt.barberId?.toLowerCase() === targetBarberIdLower) {
             return true;
           }
         }
         
         // 3. Name fallback check for Commissions (expense)
         if (t.type === 'EXPENSE') {
-          const descLower = t.description.toLowerCase();
           const cleanBarberName = barber.name.toLowerCase().trim();
           if (descLower.includes('comissão') || descLower.includes('comissao')) {
             if (cleanBarberName && (descLower.includes(cleanBarberName) || descLower.includes(`(${cleanBarberName})`))) {
@@ -157,12 +159,13 @@ export default function AdminFinanceiro() {
 
       // Fallback: If there are completed appointments in the active filter range 
       // check if any of them are not accounted for in incomeTxs
-      const apptsOfBarber = filteredAppointments.filter(a => a.barberId === barber.id);
+      const apptsOfBarber = filteredAppointments.filter(a => a.barberId?.toLowerCase() === targetBarberIdLower);
       apptsOfBarber.forEach(appt => {
-        const isRepresented = incomeTxs.some(t => 
-          t.description.includes(`Ref: ${appt.id}`) ||
-          (t.description.includes('Venda PDV') && Math.abs(new Date(t.date).getTime() - new Date(appt.date).getTime()) <= 45000)
-        );
+        const isRepresented = incomeTxs.some(t => {
+          const descLower = t.description.toLowerCase();
+          return descLower.includes(`ref: ${appt.id.toLowerCase()}`) ||
+            (descLower.includes('venda pdv') && Math.abs(new Date(t.date).getTime() - new Date(appt.date).getTime()) <= 45000);
+        });
         
         if (!isRepresented) {
           const service = state.services.find(s => s.id === appt.serviceId);

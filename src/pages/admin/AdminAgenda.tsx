@@ -201,8 +201,7 @@ export default function AdminAgenda() {
       const clientMatches = normDesc.includes(normClientAppt) || appt.clientName === 'Cliente Avulso' || normClientAppt.includes('avulso');
       const barberMatches = !appt.barberId || 
                             (normBarberName && normDesc.includes(normBarberName)) || 
-                            t.description.includes(`[Barbeiro: ${appt.barberId}]`) ||
-                            t.description.includes(`[Barbeiro: ${appt.barberId?.toLowerCase()}]`);
+                            t.description.toLowerCase().includes(`[barbeiro: ${appt.barberId.toLowerCase()}]`);
       return clientMatches && barberMatches;
     });
 
@@ -228,7 +227,7 @@ export default function AdminAgenda() {
       const clientMatches = normDesc.includes(normClientAppt) || appt.clientName === 'Cliente Avulso' || normClientAppt.includes('avulso');
       const barberMatches = !appt.barberId || 
                             (normBarberName && normDesc.includes(normBarberName)) || 
-                            t.description.includes(`[Barbeiro: ${appt.barberId}]`);
+                            t.description.toLowerCase().includes(`[barbeiro: ${appt.barberId.toLowerCase()}]`);
       return clientMatches && barberMatches;
     });
   };
