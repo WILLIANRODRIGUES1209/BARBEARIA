@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Lock, LogIn, Mail, Building, KeyRound, Scissors } from 'lucide-react';
+import { Lock, LogIn, Mail, Building, KeyRound, Scissors, ShieldAlert } from 'lucide-react';
 import { supabase } from '../../supabase';
 import { useBarbearia } from '../../context/BarbeariaContext';
+import RlsHelpModal from '../../components/RlsHelpModal';
 
 export default function AdminLogin({ onLogin }: { onLogin: (role: 'ADMIN' | 'BARBEIRO', barbeiroId: string | null) => void }) {
   const [loginType, setLoginType] = useState<'ADMIN' | 'BARBEIRO'>('ADMIN');
@@ -12,6 +13,7 @@ export default function AdminLogin({ onLogin }: { onLogin: (role: 'ADMIN' | 'BAR
   const [pin, setPin] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
+  const [rlsHelpOpen, setRlsHelpOpen] = useState(false);
   const navigate = useNavigate();
   const { fetchBySlug } = useBarbearia();
 
@@ -46,9 +48,9 @@ export default function AdminLogin({ onLogin }: { onLogin: (role: 'ADMIN' | 'BAR
         if (barbError) {
           console.error('Erro ao buscar barbeiro:', barbError);
           if (barbError.code === 'PGRST116') {
-            throw new Error('Nº de Acesso ou PIN incorretos.');
+            throw new Error('Nº de Acesso ou PIN incorretos. (Se as políticas RLS estiverem ativas em seu Supabase, elas podem bloquear o login de barbeiros).');
           } else {
-            throw new Error(`Erro de conexão com o Supabase: ${barbError.message || 'Erro de rede'}. Verifique se suas credenciais no arquivo .env estão corretas.`);
+            throw new Error(`Erro de conexão com o Supabase: ${barbError.message || 'Erro de rede'}. Verifique se suas credenciais estão corretas.`);
           }
         }
 
@@ -155,7 +157,16 @@ export default function AdminLogin({ onLogin }: { onLogin: (role: 'ADMIN' | 'BAR
           )}
           
           {errorMsg && (
-             <p className="text-red-500 text-xs mt-2 text-center">{errorMsg}</p>
+            <div className="space-y-2">
+              <p className="text-red-500 text-xs mt-2 text-center">{errorMsg}</p>
+              <button
+                type="button"
+                onClick={() => setRlsHelpOpen(true)}
+                className="w-full flex items-center justify-center gap-1.5 py-2 px-3 bg-red-950/20 hover:bg-red-950/40 border border-red-500/20 text-red-400 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all"
+              >
+                <ShieldAlert size={14} /> Como Ajustar Permissões (RLS)
+              </button>
+            </div>
           )}
 
           <button
@@ -168,6 +179,13 @@ export default function AdminLogin({ onLogin }: { onLogin: (role: 'ADMIN' | 'BAR
         </form>
 
         <div className="mt-8 text-center border-t border-[#222] pt-6 flex flex-col gap-4">
+          <button 
+            type="button"
+            onClick={() => setRlsHelpOpen(true)}
+            className="text-yellow-500/80 hover:text-yellow-500 transition-colors text-xs uppercase tracking-widest font-black flex items-center justify-center gap-1.5"
+          >
+            <ShieldAlert size={14} /> Solução do Banco Offline / RLS
+          </button>
           <button 
             onClick={() => navigate('/planos')}
             className="text-[#C5A059] hover:text-white transition-colors text-xs uppercase tracking-widest font-bold"
@@ -182,6 +200,8 @@ export default function AdminLogin({ onLogin }: { onLogin: (role: 'ADMIN' | 'BAR
           </button>
         </div>
       </div>
+
+      <RlsHelpModal isOpen={rlsHelpOpen} onClose={() => setRlsHelpOpen(false)} />
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { Scissors, LayoutDashboard, Calendar as CalendarIcon, Package, DollarSig
 import { AppProvider, useAppContext } from './context/AppContext';
 import { BarbeariaProvider, useBarbearia } from './context/BarbeariaContext';
 import { supabase } from './supabase';
+import RlsHelpModal from './components/RlsHelpModal';
 
 // Pages
 import ClientBooking from './pages/client/ClientBooking';
@@ -32,6 +33,7 @@ const AdminLayout = ({ children, onLogout, authState }: { children: React.ReactN
   const { state } = useAppContext();
   const { barbearia } = useBarbearia();
   const [logoUrl, setLogoUrl] = useState("");
+  const [rlsHelpOpen, setRlsHelpOpen] = useState(false);
 
   useEffect(() => {
     if (barbearia?.id) {
@@ -146,10 +148,14 @@ const AdminLayout = ({ children, onLogout, authState }: { children: React.ReactN
             <p className="text-xs text-[#555]">{new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
           </div>
           <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setRlsHelpOpen(true)}
+              className="flex items-center gap-2 hover:bg-[#151515] px-2.5 py-1.5 rounded-xl border border-[#222] transition-colors cursor-pointer"
+              title="Clique para ver instruções de solução para o Banco de Dados / RLS"
+            >
               <div className={`w-2 h-2 rounded-full ${state.isConnected ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]'}`}></div>
-              <span className="text-[10px] text-[#777] uppercase tracking-wider">{state.isConnected ? 'Banco de Dados Online' : 'Banco de Dados Offline'}</span>
-            </div>
+              <span className="text-[10px] text-[#777] uppercase tracking-wider font-bold transition-colors hover:text-white">{state.isConnected ? 'Banco de Dados Online' : 'Banco de Dados Offline'}</span>
+            </button>
             <div className="text-right">
               <p className="text-sm font-medium">{authState.role === 'ADMIN' ? 'Administrador' : 'Barbeiro'}</p>
               <p className="text-[10px] text-[#C5A059] uppercase">Status: Online</p>
@@ -186,6 +192,8 @@ const AdminLayout = ({ children, onLogout, authState }: { children: React.ReactN
           {children}
         </div>
       </main>
+
+      <RlsHelpModal isOpen={rlsHelpOpen} onClose={() => setRlsHelpOpen(false)} />
     </div>
   );
 };

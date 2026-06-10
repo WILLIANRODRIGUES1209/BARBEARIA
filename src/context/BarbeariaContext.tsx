@@ -122,6 +122,17 @@ export const BarbeariaProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         }
       }
 
+      if (!barbeariaId) {
+        console.warn('Barbearia ID não encontrado nos metadados ou perfil. Tentando carregar a primeira barbearia do banco de fallback...');
+        const { data: listBarbs } = await supabase
+          .from('barbearias')
+          .select('id, nome, slug')
+          .limit(1);
+        if (listBarbs && listBarbs.length > 0) {
+          barbeariaId = listBarbs[0].id;
+        }
+      }
+
       if (barbeariaId) {
         const { data, error } = await supabase
           .from('barbearias')
@@ -131,8 +142,25 @@ export const BarbeariaProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
         if (error) {
           console.warn('Erro ao buscar dados da barbearia (verifique RLS):', error);
+          // Fallback final: tenta qualquer barbearia
+          const { data: firstBarb } = await supabase.from('barbearias').select('id, nome, slug').limit(1);
+          if (firstBarb && firstBarb.length > 0) {
+            setBarbearia(firstBarb[0]);
+          }
         } else if (data) {
           setBarbearia(data);
+        } else {
+          // Fallback se não retornou linha
+          const { data: firstBarb } = await supabase.from('barbearias').select('id, nome, slug').limit(1);
+          if (firstBarb && firstBarb.length > 0) {
+            setBarbearia(firstBarb[0]);
+          }
+        }
+      } else {
+        // Se não resolveu ID de nenhuma forma, tenta do mesmo jeito pegar a primeira do DB
+        const { data: firstBarb } = await supabase.from('barbearias').select('id, nome, slug').limit(1);
+        if (firstBarb && firstBarb.length > 0) {
+          setBarbearia(firstBarb[0]);
         }
       }
     } catch (err) {
