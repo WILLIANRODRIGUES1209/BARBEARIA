@@ -9,9 +9,10 @@ interface Props {
   maxItems?: number;
   showFilters?: boolean;
   barberName?: string;
+  hideEdit?: boolean;
 }
 
-export default function TransactionHistoryList({ maxItems, showFilters = true, barberName }: Props) {
+export default function TransactionHistoryList({ maxItems, showFilters = true, barberName, hideEdit = false }: Props) {
   const { state, updateTransaction, deleteTransaction } = useAppContext();
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<'ALL' | 'INCOME' | 'EXPENSE'>('ALL');
@@ -187,13 +188,15 @@ export default function TransactionHistoryList({ maxItems, showFilters = true, b
                       </td>
                       <td className="p-4">
                         <div className="flex items-center justify-center gap-2">
-                          <button
-                            onClick={() => handleOpenEdit(t)}
-                            title="Corrigir valor / descrição"
-                            className="p-1.5 rounded-lg border border-blue-500/20 text-blue-400 hover:bg-blue-500/10 hover:border-blue-500/40 transition-all cursor-pointer"
-                          >
-                            <Pencil size={13} />
-                          </button>
+                          {!hideEdit && (
+                            <button
+                              onClick={() => handleOpenEdit(t)}
+                              title="Corrigir valor / descrição"
+                              className="p-1.5 rounded-lg border border-blue-500/20 text-blue-400 hover:bg-blue-500/10 hover:border-blue-500/40 transition-all cursor-pointer"
+                            >
+                              <Pencil size={13} />
+                            </button>
+                          )}
                           
                           <button
                             onClick={() => handleDelete(t)}
