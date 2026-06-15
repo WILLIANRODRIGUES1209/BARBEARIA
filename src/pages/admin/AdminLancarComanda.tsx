@@ -219,43 +219,56 @@ export default function AdminLancarComanda() {
               </div>
             </div>
 
-            {/* Quick Service Tags and Catalog Selection */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-              <div className="space-y-2">
-                <label className="block text-[10px] uppercase tracking-wider text-[#777] font-bold">Lançamento Rápido</label>
-                <div className="flex flex-wrap gap-2">
-                  {['Cabelo', 'Barba', 'Sobrancelha', 'Outro'].map((serviceType) => (
+            {/* Quick Service Tags */}
+            <div className="space-y-2 pt-2 pb-1">
+              <label className="block text-[10px] uppercase tracking-wider text-[#777] font-bold">Lançamento Rápido</label>
+              <div className="flex flex-wrap gap-2.5">
+                {['Cabelo', 'Barba', 'Sobrancelha', 'Outro'].map((serviceType) => (
+                  <button
+                    key={serviceType}
+                    type="button"
+                    onClick={() => handleAddService(serviceType)}
+                    className="px-4 py-2.5 bg-[#161616] hover:bg-[#C5A05922] border border-[#222] hover:border-[#C5A05955] text-white text-xs font-black rounded-xl transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
+                  >
+                    <span className="text-[#C5A059] text-sm">+</span>
+                    <span>{serviceType}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Catalog Services (Separated Grid Squares) */}
+            {state.services.length > 0 && (
+              <div className="space-y-3 pt-2">
+                <label className="block text-[10px] uppercase tracking-wider text-[#777] font-bold">Serviços do Catálogo (Clique para adicionar)</label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 bg-[#161616]/30 p-2 border border-[#222]/60 rounded-2xl">
+                  {state.services.map(svc => (
                     <button
-                      key={serviceType}
+                      key={`cat-svc-${svc.id}`}
                       type="button"
-                      onClick={() => handleAddService(serviceType)}
-                      className="px-3.5 py-2 bg-[#161616] hover:bg-[#C5A05922] border border-[#222] hover:border-[#C5A05955] text-white text-xs font-black rounded-lg transition-all active:scale-95 cursor-pointer flex items-center gap-1"
+                      onClick={() => handleAddCatalogService(svc.id)}
+                      className="aspect-square flex flex-col justify-between p-4 bg-[#161616] hover:bg-[#C5A05911] border border-[#222] hover:border-[#C5A05944] rounded-xl transition-all active:scale-[0.97] group text-left relative overflow-hidden"
                     >
-                      <span>+</span> {serviceType}
+                      <div className="absolute inset-0 bg-gradient-to-tr from-[#C5A05903] to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                      
+                      <div className="w-8 h-8 rounded-lg bg-[#C5A0590c] border border-[#C5A0591c] group-hover:bg-[#C5A05918] group-hover:border-[#C5A05938] flex items-center justify-center shrink-0 mb-3 transition-all">
+                        <Scissors size={14} className="text-[#C5A059]" />
+                      </div>
+                      
+                      <div className="w-full mt-auto">
+                        <h3 className="text-xs font-bold text-[#E0E0E0] group-hover:text-white transition-colors leading-tight line-clamp-2" title={svc.name}>
+                          {svc.name}
+                        </h3>
+                        <p className="text-sm font-black text-[#C5A059] mt-1.5 flex items-baseline gap-0.5">
+                          <span className="text-[10px] font-bold text-[#C5A059]/80">R$</span>
+                          <span>{svc.price.toFixed(2)}</span>
+                        </p>
+                      </div>
                     </button>
                   ))}
                 </div>
               </div>
-
-              {state.services.length > 0 && (
-                <div className="space-y-2">
-                  <label className="block text-[10px] uppercase tracking-wider text-[#777] font-bold">Serviços do Catálogo</label>
-                  <div className="max-h-24 overflow-y-auto border border-[#222] rounded-xl bg-[#161616] p-2 space-y-1.5 custom-scrollbar">
-                    {state.services.map(svc => (
-                      <button
-                        key={`cat-svc-${svc.id}`}
-                        type="button"
-                        onClick={() => handleAddCatalogService(svc.id)}
-                        className="w-full text-left px-2 sm:px-3 py-1.5 rounded bg-[#1C1C1C] hover:bg-[#C5A05915] text-white text-[10px] font-bold flex justify-between items-center transition-colors border border-transparent hover:border-[#C5A05944]"
-                      >
-                        <span className="truncate">{svc.name}</span>
-                        <span className="text-[#C5A059] font-black shrink-0">R$ {svc.price.toFixed(2)}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+            )}
 
             {/* Seletor de Forma de Pagamento */}
             <div className="space-y-1.5 pt-2">

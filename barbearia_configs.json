@@ -5,5 +5,12 @@
     "workEnd": "20:00",
     "workStart": "08:00",
     "logoUrl": ""
+  },
+  "7be5aba5-d7a5-4f24-aba6-d121c4c2d425": {
+    "lunchStart": "12:00",
+    "lunchEnd": "13:00",
+    "workEnd": "20:00",
+    "workStart": "08:00",
+    "logoUrl": ""
   }
 }

@@ -51,7 +51,6 @@ const AdminLayout = ({ children, onLogout, authState }: { children: React.ReactN
     { name: 'Dashboard', path: '/admin', icon: LayoutDashboard, adminOnly: true },
     { name: 'Agenda', path: '/admin/agenda', icon: CalendarIcon, adminOnly: false },
     { name: 'Lançar Comanda', path: '/admin/lancar-comanda', icon: Receipt, adminOnly: false },
-    { name: 'PDV / Caixa', path: '/admin/pdv', icon: ShoppingCart, adminOnly: false },
     { name: 'Clientes', path: '/admin/clientes', icon: Users, adminOnly: false },
     { name: 'Meu Histórico', path: '/admin/meu-historico', icon: DollarSign, barbeiroOnly: true },
     { name: 'Barbeiros', path: '/admin/barbeiros', icon: Scissors, adminOnly: true },
