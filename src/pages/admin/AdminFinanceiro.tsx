@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { Plus, TrendingUp, TrendingDown, DollarSign, X, Calendar as CalendarIcon, Check, Trash2, Users, RefreshCw } from 'lucide-react';
 import { format, parseISO, startOfMonth, endOfMonth, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import TransactionHistoryList from '../../components/TransactionHistoryList';
 import toast from 'react-hot-toast';
 
@@ -10,6 +11,7 @@ export default function AdminFinanceiro() {
   const [isAdding, setIsAdding] = useState(false);
   const [newTx, setNewTx] = useState({ description: '', amount: 0, type: 'INCOME' as 'INCOME' | 'EXPENSE' });
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [selectedBarberDetails, setSelectedBarberDetails] = useState<any | null>(null);
 
   useEffect(() => {
     const initFetch = async () => {
@@ -248,6 +250,75 @@ export default function AdminFinanceiro() {
     setChatResponse('');
   };
 
+  const detailedBarberAgendamentos = useMemo(() => {
+    if (!selectedBarberDetails) return [];
+    
+    const barberIdLower = selectedBarberDetails.id.toLowerCase();
+    const comissaoPercent = selectedBarberDetails.comissao || 0;
+    
+    return filteredAppointments
+      .filter(a => a.barberId?.toLowerCase() === barberIdLower)
+      .map(appt => {
+        const service = state.services.find(s => s.id === appt.serviceId);
+        const defaultServicePrice = service?.price || 0;
+        
+        const incomeTx = state.transactions.find(t => {
+          if (t.type !== 'INCOME') return false;
+          const descLower = t.description.toLowerCase();
+          if (descLower.includes(`ref: ${appt.id.toLowerCase()}`)) return true;
+          if (descLower.includes('venda pdv')) {
+            const isOurBarber = descLower.includes((selectedBarberDetails.name || '---').toLowerCase()) || descLower.includes(`[barbeiro: ${barberIdLower}]`);
+            if (!isOurBarber) return false;
+            const tTime = new Date(t.date).getTime();
+            const aTime = new Date(appt.date).getTime();
+            if (Math.abs(tTime - aTime) <= 15000 && (descLower.includes(appt.clientName.toLowerCase()) || appt.clientName === 'Cliente Avulso' || descLower.includes('comanda:'))) {
+              return true;
+            }
+          }
+          return false;
+        });
+
+        let commissionTx = null;
+        if (incomeTx) {
+          commissionTx = state.transactions.find(other => {
+            if (other.type !== 'EXPENSE') return false;
+            const descLower = other.description.toLowerCase();
+            if (!descLower.includes('comissão') && !descLower.includes('comissao')) return false;
+            const targetTime = new Date(incomeTx.date).getTime();
+            const otherTime = new Date(other.date).getTime();
+            return Math.abs(targetTime - otherTime) <= 15000;
+          });
+        }
+
+        let valorComissao = 0;
+        let valorServico = defaultServicePrice;
+
+        if (commissionTx) {
+          valorComissao = commissionTx.amount;
+          if (comissaoPercent > 0) valorServico = (valorComissao * 100) / comissaoPercent;
+          else if (incomeTx) valorServico = incomeTx.amount;
+        } else if (incomeTx) {
+          valorServico = incomeTx.amount;
+          valorComissao = (valorServico * comissaoPercent) / 100;
+        } else {
+          valorServico = defaultServicePrice;
+          valorComissao = (valorServico * comissaoPercent) / 100;
+        }
+
+        return {
+          ...appt,
+          serviceName: appt.serviceId === '1' && incomeTx && incomeTx.description.includes('Comanda:')
+            ? incomeTx.description.split('Comanda:')[1]?.split('(')[0]?.trim() || service?.name || 'Serviço'
+            : service?.name || 'Serviço Excluído',
+          valorServico,
+          valorComissao,
+          incomeTx,
+          commissionTx
+        };
+      })
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [selectedBarberDetails, filteredAppointments, state.transactions, state.services]);
+
   const sortedTransactions = [...filteredTransactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   return (
@@ -430,10 +501,16 @@ export default function AdminFinanceiro() {
                   <span className="text-[#888]">Comissão {barber.comissao || 0}%:</span>
                   <span className="text-[#FF3D00] font-medium">- R$ {commission.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between border-t border-[#222] pt-2 mt-2 font-medium">
+                <div className="flex justify-between border-t border-[#222] pt-2 mt-2 font-medium mb-3">
                   <span className="text-white">Líquido Barbearia:</span>
                   <span className="text-[#00C853] font-bold">R$ {net.toFixed(2)}</span>
                 </div>
+                <button
+                  onClick={() => setSelectedBarberDetails(barber)}
+                  className="w-full py-2 bg-[#C5A05915] hover:bg-[#C5A05930] text-[#C5A059] border border-[#C5A05944] rounded-lg text-xs font-bold transition-all uppercase tracking-wider"
+                >
+                  Ver Detalhes
+                </button>
               </div>
             </div>
           ))}
@@ -492,6 +569,68 @@ export default function AdminFinanceiro() {
         <TransactionHistoryList showFilters={true} />
       </div>
       </div>
+
+      {/* DETALHAMENTO DO BARBEIRO (MODAL) */}
+      {selectedBarberDetails && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-[#121212] border border-[#222] rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+            <div className="p-4 border-b border-[#222] flex justify-between items-center bg-[#161616]">
+              <div>
+                <h2 className="text-lg font-bold text-white uppercase tracking-wider">{selectedBarberDetails.name}</h2>
+                <p className="text-xs text-[#777]">Relatório Detalhado de Cortes • Comissão: {selectedBarberDetails.comissao || 0}%</p>
+              </div>
+              <button 
+                onClick={() => setSelectedBarberDetails(null)}
+                className="p-2 bg-[#222] hover:bg-[#333] text-white rounded-lg transition-colors cursor-pointer"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="p-4 overflow-y-auto custom-scrollbar flex-1">
+              {detailedBarberAgendamentos.length === 0 ? (
+                <div className="py-12 text-center text-[#777]">
+                  Nenhum atendimento registrado neste período.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {detailedBarberAgendamentos.map((appt) => (
+                    <div key={appt.id} className="bg-[#161616] border border-[#222] p-4 rounded-xl flex flex-col sm:flex-row justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-bold text-white uppercase text-sm">{appt.clientName}</h3>
+                          <span className="text-[10px] text-[#777] bg-[#222] px-2 py-0.5 rounded">
+                            {format(parseISO(appt.date), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                          </span>
+                        </div>
+                        <p className="text-xs text-[#999]">{appt.serviceName}</p>
+                      </div>
+                      
+                      <div className="flex flex-row sm:flex-col justify-between sm:justify-center items-end gap-2 border-t sm:border-t-0 border-[#222] pt-3 sm:pt-0 mt-2 sm:mt-0">
+                        <div className="text-right">
+                          <p className="text-[10px] text-[#777] uppercase tracking-wider">Valor Cobrado</p>
+                          <p className="font-medium text-white text-sm">R$ {appt.valorServico.toFixed(2)}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] text-[#777] uppercase tracking-wider">Comissão ({selectedBarberDetails.comissao || 0}%)</p>
+                          <p className="font-bold text-[#FF3D00] text-sm">R$ {appt.valorComissao.toFixed(2)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            
+            <div className="p-4 border-t border-[#222] bg-[#161616] flex justify-between items-center text-sm font-bold">
+              <span className="text-white">Total Líquido Retido pela Barbearia:</span>
+              <span className="text-[#00C853] text-lg">
+                R$ {detailedBarberAgendamentos.reduce((acc, curr) => acc + (curr.valorServico - curr.valorComissao), 0).toFixed(2)}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -10,5 +10,17 @@
     },
     "role": "admin",
     "deviceId": "tlfmwii2d9"
+  },
+  {
+    "subscription": {
+      "endpoint": "https://fcm.googleapis.com/fcm/send/cwckuNhKCZw:APA91bG6azkE3j0zLHicW6BOClAcLo8pm1C4n3VhaX8XY1BjgOPKsrlb82itZvSNwQE5n-f_PDWPnhBWNyW8hq3Y5TjUFnH34G47tLoll3tUvBHQZI_FrBAoNddGlsWOm48GAhpAcw9F",
+      "expirationTime": null,
+      "keys": {
+        "p256dh": "BHKmQOZYsdi4qp7UjVQvufQtblSDEmjaxf1JFESxqOTEdMDUwuARQ_Ev0rT7kfz-S2IsnuqklAwbqFchDJoD5KI",
+        "auth": "gC409UEqj-ht15LpWjFBng"
+      }
+    },
+    "role": "admin",
+    "deviceId": "m8y458wpxpj"
   }
 ]
