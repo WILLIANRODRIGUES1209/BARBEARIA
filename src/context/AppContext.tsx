@@ -3,6 +3,7 @@ import { AppState, Appointment, Product, Transaction, Service, Client, Barber } 
 import { supabase } from '../supabase';
 import { useBarbearia } from './BarbeariaContext';
 import toast from 'react-hot-toast';
+import { retryCall } from '../utils/dbRetry';
 
 export interface AppContextType {
   state: AppState;
@@ -27,6 +28,8 @@ export interface AppContextType {
   deleteBarber: (id: string) => Promise<void>;
   refreshData: (forceAll?: boolean) => Promise<void>;
   clearTestData: () => Promise<void>;
+  playNotificationSound: () => void;
+  triggerTestNotification: () => void;
 }
 
 const DEFAULT_SERVICES: Service[] = [
@@ -269,6 +272,82 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const playNotificationSound = () => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const audioCtx = new AudioCtx();
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      const now = audioCtx.currentTime;
+
+      // Bright multi-tone ring chime sequence (E5 -> A5 -> C#6 bell sequence)
+      const notes = [
+        { freq: 659.25, time: 0, duration: 0.25 },
+        { freq: 880.00, time: 0.15, duration: 0.35 },
+        { freq: 1108.73, time: 0.30, duration: 0.50 }
+      ];
+
+      notes.forEach(note => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(note.freq, now + note.time);
+        
+        gain.gain.setValueAtTime(0, now + note.time);
+        gain.gain.linearRampToValueAtTime(0.35, now + note.time + 0.03);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + note.time + note.duration);
+        
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        
+        osc.start(now + note.time);
+        osc.stop(now + note.time + note.duration);
+      });
+
+      // Mobile device vibration pattern (double pulse chime)
+      if ('vibrate' in navigator) {
+        navigator.vibrate([300, 100, 300, 100, 400]);
+      }
+    } catch (e) {
+      console.error('Audio chime play error:', e);
+    }
+  };
+
+  const showNativeNotification = (title: string, body: string) => {
+    if (!('Notification' in window)) return;
+    if (Notification.permission !== 'granted') return;
+
+    const options = {
+      body,
+      icon: '/icon.svg',
+      badge: '/icon.svg',
+      vibrate: [300, 100, 300, 100, 400],
+      tag: 'novo-agendamento-' + Date.now(),
+      renotify: true,
+      silent: false,
+      requireInteraction: true
+    };
+
+    try {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.ready.then((reg) => {
+          reg.showNotification(title, options);
+        }).catch(() => {
+          new Notification(title, options);
+        });
+      } else {
+        new Notification(title, options);
+      }
+    } catch (err) {
+      console.warn('Native notification error:', err);
+      try {
+        new Notification(title, options);
+      } catch (_) {}
+    }
+  };
+
   useEffect(() => {
     if (!barbearia) return;
 
@@ -291,55 +370,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         refreshData(false);
       }
     }, 180000);
-
-    const playBeep = () => {
-      try {
-        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-        const oscillator = audioCtx.createOscillator();
-        const gainNode = audioCtx.createGain();
-        oscillator.connect(gainNode);
-        gainNode.connect(audioCtx.destination);
-        oscillator.type = 'sine';
-        oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // A5
-        gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-        oscillator.start();
-        gainNode.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.5);
-        oscillator.stop(audioCtx.currentTime + 0.5);
-      } catch (e) {
-        console.error(e);
-      }
-    };
-
-    const showNativeNotification = (title: string, body: string) => {
-      if (!('Notification' in window)) return;
-      if (Notification.permission !== 'granted') return;
-
-      const options = {
-        body,
-        icon: '/icon-192x192.png',
-        badge: '/icon-192x192.png',
-        vibrate: [200, 100, 200],
-        silent: false,
-        requireInteraction: false
-      };
-
-      try {
-        if ('serviceWorker' in navigator) {
-          navigator.serviceWorker.ready.then((reg) => {
-            reg.showNotification(title, options);
-          }).catch(() => {
-            new Notification(title, options);
-          });
-        } else {
-          new Notification(title, options);
-        }
-      } catch (err) {
-        console.warn('Native notification error:', err);
-        try {
-          new Notification(title, options);
-        } catch (_) {}
-      }
-    };
 
     const channelAgendamentos = supabase.channel(`realtime-agendamentos-${barbearia.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'agendamentos', filter: `barbearia_id=eq.${barbearia.id}` }, (payload: any) => {
@@ -367,17 +397,57 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
              });
 
              if (window.location.pathname.startsWith('/admin')) {
-               toast.success(`Novo agendamento: ${payload.new.cliente_nome}!`, {
-                 duration: 6000,
-                 icon: '🚀'
+               const clientName = payload.new.cliente_nome || 'Cliente';
+               const barberObj = state.barbers.find(b => b.id === payload.new.barbeiro_id);
+               const serviceObj = state.services.find(s => s.id === payload.new.servico_id);
+               const barberName = barberObj ? barberObj.name : 'Barbeiro Geral';
+               const serviceName = serviceObj ? serviceObj.name : 'Serviço';
+
+               let timeFormatted = '';
+               if (payload.new.data_hora) {
+                 try {
+                   const d = new Date(payload.new.data_hora);
+                   timeFormatted = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) + ' (' + d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ')';
+                 } catch (e) {}
+               }
+
+               toast.custom((t) => (
+                 <div
+                   className={`${
+                     t.visible ? 'animate-enter' : 'animate-leave'
+                   } max-w-md w-full bg-[#161616] border-2 border-[#C5A059] shadow-[0_0_25px_rgba(197,160,89,0.4)] rounded-2xl pointer-events-auto flex p-4 gap-3 text-white transition-all`}
+                 >
+                   <div className="bg-[#C5A059] text-black p-3 rounded-xl flex items-center justify-center shrink-0 h-12 w-12 font-bold text-xl shadow-md">
+                     ✂️
+                   </div>
+                   <div className="flex-1 min-w-0">
+                     <div className="flex items-center justify-between">
+                       <p className="text-[10px] uppercase tracking-widest font-extrabold text-[#C5A059]">Novo Agendamento em Tempo Real</p>
+                       <span className="text-[9px] text-[#00C853] bg-[#00C85322] border border-[#00C85344] px-2 py-0.5 rounded font-mono font-bold">AGORA</span>
+                     </div>
+                     <p className="text-sm font-bold text-white mt-1 truncate">
+                       {clientName}
+                     </p>
+                     <div className="text-xs text-gray-300 mt-1 space-y-0.5">
+                       <p><span className="text-gray-400">Barbeiro:</span> <strong className="text-[#C5A059]">{barberName}</strong></p>
+                       <p><span className="text-gray-400">Serviço:</span> <strong className="text-white">{serviceName}</strong></p>
+                       {timeFormatted && <p><span className="text-gray-400">Horário:</span> <strong className="text-gray-200">{timeFormatted}</strong></p>}
+                     </div>
+                   </div>
+                   <button
+                     onClick={() => toast.dismiss(t.id)}
+                     className="text-gray-400 hover:text-white text-xs font-bold p-1 self-start cursor-pointer"
+                   >
+                     ✕
+                   </button>
+                 </div>
+               ), {
+                 duration: 10000,
+                 position: 'top-right'
                });
-               playBeep();
-               setState(prev => {
-                 const sObj = prev.services.find(s => s.id === payload.new.servico_id);
-                 const sName = sObj ? sObj.name : 'Serviço';
-                 showNativeNotification(`🚀 Novo Agendamento!`, `Cliente: ${payload.new.cliente_nome}\nServiço: ${sName}`);
-                 return prev;
-               });
+
+               playNotificationSound();
+               showNativeNotification(`🚀 Novo Agendamento: ${clientName}`, `Barbeiro: ${barberName}\nServiço: ${serviceName}\nHorário: ${timeFormatted}`);
              }
           } else if (payload.eventType === 'UPDATE') {
              setState(prev => ({
@@ -386,14 +456,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
              }));
              
              if (payload.new.status === 'CANCELADO' && window.location.pathname.startsWith('/admin')) {
-               toast.error(`Agendamento cancelado: ${payload.new.cliente_nome}`, {
+               const clientName = payload.new.cliente_nome || 'Cliente';
+               toast.error(`Agendamento cancelado: ${clientName}`, {
                  duration: 6000
                });
-               playBeep();
+               playNotificationSound();
                setState(prev => {
                  const sObj = prev.services.find(s => s.id === payload.new.servico_id);
                  const sName = sObj ? sObj.name : 'Serviço';
-                 showNativeNotification(`❌ Agendamento Cancelado`, `Cliente: ${payload.new.cliente_nome}\nServiço: ${sName}`);
+                 showNativeNotification(`❌ Agendamento Cancelado`, `Cliente: ${clientName}\nServiço: ${sName}`);
                  return prev;
                });
              }
@@ -973,10 +1044,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (item.updates.type !== undefined) mappedUpdates.tipo = item.updates.type === 'INCOME' ? 'ENTRADA' : 'SAIDA';
         if (item.updates.date !== undefined) mappedUpdates.data = item.updates.date;
 
-        const { error } = await supabase
-          .from('transacoes')
-          .update(mappedUpdates)
-          .eq('id', item.id);
+        const { error } = await retryCall(async () => {
+          return await supabase
+            .from('transacoes')
+            .update(mappedUpdates)
+            .eq('id', item.id);
+        });
 
         if (error) throw error;
       }
@@ -1281,6 +1354,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const triggerTestNotification = () => {
+    playNotificationSound();
+    if ('Notification' in window && Notification.permission !== 'granted') {
+      Notification.requestPermission();
+    }
+    toast.custom((t) => (
+      <div
+        className={`${
+          t.visible ? 'animate-enter' : 'animate-leave'
+        } max-w-md w-full bg-[#161616] border-2 border-[#C5A059] shadow-[0_0_25px_rgba(197,160,89,0.4)] rounded-2xl pointer-events-auto flex p-4 gap-3 text-white transition-all`}
+      >
+        <div className="bg-[#C5A059] text-black p-3 rounded-xl flex items-center justify-center shrink-0 h-12 w-12 font-bold text-xl shadow-md">
+          🔔
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] uppercase tracking-widest font-extrabold text-[#C5A059]">Teste de Notificação e Som</p>
+            <span className="text-[9px] text-[#00C853] bg-[#00C85322] border border-[#00C85344] px-2 py-0.5 rounded font-mono font-bold">OK</span>
+          </div>
+          <p className="text-sm font-bold text-white mt-1">
+            Som e Notificações em Tempo Real
+          </p>
+          <p className="text-xs text-gray-300 mt-1">
+            Notificações e sinal sonoro ativos com sucesso para novos agendamentos!
+          </p>
+        </div>
+        <button
+          onClick={() => toast.dismiss(t.id)}
+          className="text-gray-400 hover:text-white text-xs font-bold p-1 self-start cursor-pointer"
+        >
+          ✕
+        </button>
+      </div>
+    ), {
+      duration: 5000,
+      position: 'top-right'
+    });
+    showNativeNotification('🔔 Teste de Notificação', 'Notificações em tempo real e sinal sonoro configurados com sucesso!');
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -1306,6 +1419,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteBarber,
         refreshData,
         clearTestData,
+        playNotificationSound,
+        triggerTestNotification,
       }}
     >
       {children}

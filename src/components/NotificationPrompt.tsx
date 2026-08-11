@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, X } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
+import { useAppContext } from '../context/AppContext';
 
 export default function NotificationPrompt() {
   const [showPrompt, setShowPrompt] = useState(false);
   const location = useLocation();
+  const { playNotificationSound, triggerTestNotification } = useAppContext();
 
   useEffect(() => {
     // Check if notifications are supported and not already granted/denied
@@ -61,6 +63,7 @@ export default function NotificationPrompt() {
     if (permission === 'granted') {
       await subscribeUser();
       setShowPrompt(false);
+      triggerTestNotification();
     } else {
       setShowPrompt(false);
       localStorage.setItem('hideNotificationPrompt', 'true');

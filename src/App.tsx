@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
-import { Scissors, LayoutDashboard, Calendar as CalendarIcon, Package, DollarSign, User, Users, Settings, LogOut, BarChart3, ShoppingCart, Receipt } from 'lucide-react';
+import { Scissors, LayoutDashboard, Calendar as CalendarIcon, Package, DollarSign, User, Users, Settings, LogOut, BarChart3, ShoppingCart, Receipt, Bell } from 'lucide-react';
 import { AppProvider, useAppContext } from './context/AppContext';
 import { BarbeariaProvider, useBarbearia } from './context/BarbeariaContext';
 import { supabase } from './supabase';
@@ -30,7 +30,7 @@ import { loadConfig } from './utils/configHelper';
 
 const AdminLayout = ({ children, onLogout, authState }: { children: React.ReactNode, onLogout: () => void, authState: any }) => {
   const location = useLocation();
-  const { state } = useAppContext();
+  const { state, triggerTestNotification } = useAppContext();
   const { barbearia } = useBarbearia();
   const [logoUrl, setLogoUrl] = useState("");
   const [rlsHelpOpen, setRlsHelpOpen] = useState(false);
@@ -146,7 +146,16 @@ const AdminLayout = ({ children, onLogout, authState }: { children: React.ReactN
             <h2 className="text-xl font-semibold">Dashboard Admin</h2>
             <p className="text-xs text-[#555]">{new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
           </div>
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => triggerTestNotification()}
+              className="flex items-center gap-2 bg-[#1A1A1A] hover:bg-[#252525] text-[#C5A059] px-3 py-1.5 rounded-xl border border-[#C5A05944] transition-all cursor-pointer text-xs font-semibold shadow-sm hover:border-[#C5A059]"
+              title="Testar Notificação em Tempo Real e Alarme Sonoro"
+            >
+              <Bell size={16} className="text-[#C5A059]" />
+              <span className="hidden md:inline">Testar Som & Notificações</span>
+            </button>
+
             <button 
               onClick={() => setRlsHelpOpen(true)}
               className="flex items-center gap-2 hover:bg-[#151515] px-2.5 py-1.5 rounded-xl border border-[#222] transition-colors cursor-pointer"
@@ -167,7 +176,7 @@ const AdminLayout = ({ children, onLogout, authState }: { children: React.ReactN
 
         {/* Mobile Header */}
         <header className="sm:hidden bg-[#0C0C0C] border-b border-[#222] px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-[#C5A059] text-base font-bold max-w-[80%]">
+          <div className="flex items-center gap-2 text-[#C5A059] text-base font-bold max-w-[70%]">
              {logoUrl ? (
                <img 
                  src={logoUrl} 
@@ -182,9 +191,18 @@ const AdminLayout = ({ children, onLogout, authState }: { children: React.ReactN
              )}
              <span className="truncate">{barbearia?.nome || 'Carregando...'}</span>
           </div>
-          <button onClick={onLogout} className="p-2 text-[#FF3D00] hover:bg-[#FF3D0022] rounded-full transition-colors flex shrink-0">
-            <LogOut size={18} />
-          </button>
+          <div className="flex items-center gap-1">
+            <button 
+              onClick={() => triggerTestNotification()}
+              className="p-2 text-[#C5A059] hover:bg-[#1A1A1A] rounded-full transition-colors flex shrink-0"
+              title="Testar Som e Notificações"
+            >
+              <Bell size={18} />
+            </button>
+            <button onClick={onLogout} className="p-2 text-[#FF3D00] hover:bg-[#FF3D0022] rounded-full transition-colors flex shrink-0">
+              <LogOut size={18} />
+            </button>
+          </div>
         </header>
 
         <div className="flex-1 overflow-y-auto p-4 sm:p-10 pb-24 sm:pb-10 content-wrapper">

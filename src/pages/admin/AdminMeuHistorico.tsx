@@ -8,6 +8,7 @@ import TransactionHistoryList from '../../components/TransactionHistoryList';
 import { confirmUI } from '../../utils/confirmUI';
 import toast from 'react-hot-toast';
 import { supabase } from '../../supabase';
+import { retryCall } from '../../utils/dbRetry';
 import RlsHelpModal from '../../components/RlsHelpModal';
 
 export default function AdminMeuHistorico() {
@@ -128,6 +129,7 @@ export default function AdminMeuHistorico() {
   }, [state.appointments, state.services, state.transactions, currentBarbeiroId, comissaoPercent, barbeiro]);
 
   const totalComissoes = agendamentos.reduce((acc, curr) => acc + curr.valorComissao, 0);
+  const totalBruto = agendamentos.reduce((acc, curr) => acc + curr.valorServico, 0);
   const totalCortes = agendamentos.length;
 
   const handleCorteClick = (appt: any) => {
@@ -161,26 +163,30 @@ export default function AdminMeuHistorico() {
         const incomeDesc = `Serviço recebido: ${selectedCorte.serviceName} (Ref: ${selectedCorte.id})`;
         const apptDateIso = selectedCorte.date || new Date().toISOString();
 
-        // 1. Insert INCOME record
-        const { data: newIncome, error: incError } = await supabase.from('transacoes').insert({
-          barbearia_id: barbeariaId,
-          tipo: 'ENTRADA',
-          valor: editAmount,
-          descricao: incomeDesc,
-          data: apptDateIso
-        }).select().single();
+        // 1. Insert INCOME record with network retries
+        const { data: newIncome, error: incError } = await retryCall(async () => {
+          return await supabase.from('transacoes').insert({
+            barbearia_id: barbeariaId,
+            tipo: 'ENTRADA',
+            valor: editAmount,
+            descricao: incomeDesc,
+            data: apptDateIso
+          }).select().single();
+        });
 
         if (incError) throw incError;
 
-        // 2. Insert Commission EXPENSE record if applicable
+        // 2. Insert Commission EXPENSE record if applicable with network retries
         if (comissaoPercent > 0) {
           const comValue = (editAmount * comissaoPercent) / 100;
-          const { error: expError } = await supabase.from('transacoes').insert({
-            barbearia_id: barbeariaId,
-            tipo: 'SAIDA',
-            valor: comValue,
-            descricao: `Comissão Barbeiro (${barbeiro?.name || 'Barbeiro'}) - ${selectedCorte.serviceName} - ${comissaoPercent}%`,
-            data: apptDateIso
+          const { error: expError } = await retryCall(async () => {
+            return await supabase.from('transacoes').insert({
+              barbearia_id: barbeariaId,
+              tipo: 'SAIDA',
+              valor: comValue,
+              descricao: `Comissão Barbeiro (${barbeiro?.name || 'Barbeiro'}) - ${selectedCorte.serviceName} - ${comissaoPercent}%`,
+              data: apptDateIso
+            });
           });
           if (expError) console.error('Erro ao salvar comissão para corte recriado:', expError);
         }
@@ -245,7 +251,7 @@ export default function AdminMeuHistorico() {
         </button>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-[#121212] p-6 rounded-2xl border border-[#222]">
           <div className="flex items-center gap-4 mb-4">
             <div className="w-12 h-12 rounded-full bg-[#1A1A1A] flex items-center justify-center border border-[#333]">
@@ -261,11 +267,25 @@ export default function AdminMeuHistorico() {
         <div className="bg-[#121212] p-6 rounded-2xl border border-[#222]">
           <div className="flex items-center gap-4 mb-4">
             <div className="w-12 h-12 rounded-full bg-[#1A1A1A] flex items-center justify-center border border-[#333]">
+              <DollarSign className="text-white" size={24} />
+            </div>
+            <div>
+              <p className="text-[10px] text-[#777] uppercase tracking-wider font-bold">Valor Total Gerado (Faturamento Bruto)</p>
+              <h2 className="text-2xl font-bold text-white uppercase">
+                R$ {totalBruto.toFixed(2)}
+              </h2>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-[#121212] p-6 rounded-2xl border border-[#222]">
+          <div className="flex items-center gap-4 mb-4">
+            <div className="w-12 h-12 rounded-full bg-[#1A1A1A] flex items-center justify-center border border-[#333]">
               <DollarSign className="text-emerald-500" size={24} />
             </div>
             <div>
-              <p className="text-sm text-[#777] uppercase tracking-wider font-bold">Total Recebido (Sua Parte)</p>
-              <h2 className="text-3xl font-bold text-emerald-500 uppercase">
+              <p className="text-[10px] text-[#777] uppercase tracking-wider font-bold">Total Recebido (Sua Comissão)</p>
+              <h2 className="text-2xl font-bold text-emerald-500 uppercase">
                 R$ {totalComissoes.toFixed(2)}
               </h2>
             </div>
@@ -336,23 +356,32 @@ export default function AdminMeuHistorico() {
             </div>
 
             {/* Mobile View (Touch friendly card layout) */}
-            <div className="md:hidden divide-y divide-[#222] p-4 space-y-3">
+            <div className="md:hidden p-4 space-y-3">
               {agendamentos.map((appt) => (
                 <div 
                    key={appt.id} 
-                   className="bg-[#161616] border border-[#222] p-4 rounded-xl space-y-2"
+                   className="bg-[#161616] border border-[#222] p-4 rounded-xl space-y-3"
                 >
-                  <div className="flex justify-between items-start">
-                    <div className="max-w-[60%]">
-                      <p className="text-sm font-bold text-white uppercase truncate">{appt.clientName}</p>
-                      <p className="text-xs text-[#999] truncate">{appt.serviceName}</p>
+                  <div className="flex justify-between items-start gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                          onClick={() => handleCorteClick(appt)}
+                          className="flex items-center gap-1 px-2.5 py-1 bg-[#C5A059]/10 hover:bg-[#C5A059]/30 border border-[#C5A059]/40 hover:border-[#C5A059] text-[#C5A059] rounded-lg text-[10px] font-bold transition-all cursor-pointer shrink-0"
+                        >
+                          <Pencil size={10} />
+                          <span>Editar Valor</span>
+                        </button>
+                        <p className="text-sm font-bold text-white uppercase truncate flex-1">{appt.clientName}</p>
+                      </div>
+                      <p className="text-xs text-[#999] truncate mt-1">{appt.serviceName}</p>
                     </div>
-                    <span className="text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded font-extrabold uppercase">
+                    <span className="text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded font-extrabold uppercase shrink-0">
                       + R$ {appt.valorComissao.toFixed(2)}
                     </span>
                   </div>
                   
-                  <div className="flex justify-between items-center text-xs text-[#777] pt-1">
+                  <div className="flex justify-between items-center text-xs text-[#777] pt-2 border-t border-[#222]/40">
                     <div className="flex items-center gap-1">
                       <CalendarIcon size={12} className="text-[#555]" />
                       <span>{format(parseISO(appt.date), "dd/MM/yyyy HH:mm", { locale: ptBR })}</span>
@@ -360,16 +389,6 @@ export default function AdminMeuHistorico() {
                     <span className="font-semibold text-[#CCC]">
                       Valor: R$ {appt.valorServico.toFixed(2)}
                     </span>
-                  </div>
-
-                  <div className="flex justify-end pt-2 border-t border-[#222]/30 mt-1">
-                    <button
-                      onClick={() => handleCorteClick(appt)}
-                      className="flex items-center gap-1 px-3 py-1 bg-[#C5A059]/10 hover:bg-[#C5A059]/30 border border-[#C5A059]/30 text-[#C5A059] rounded-lg text-xs font-bold transition-all cursor-pointer"
-                    >
-                      <Pencil size={11} />
-                      Editar Valor
-                    </button>
                   </div>
                 </div>
               ))}
