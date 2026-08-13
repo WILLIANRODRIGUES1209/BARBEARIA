@@ -1,12 +1,27 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useAppContext } from '../../context/AppContext';
-import { BarChart3, TrendingUp, Users, Calendar, DollarSign, ChevronDown, ChevronUp, Filter, RefreshCw } from 'lucide-react';
+import { useBarbearia } from '../../context/BarbeariaContext';
+import { BarChart3, TrendingUp, Users, Calendar, DollarSign, ChevronDown, ChevronUp, Filter, RefreshCw, Bell, FileText } from 'lucide-react';
 import { startOfDay, endOfDay, isWithinInterval, startOfMonth, endOfMonth, parseISO, subMonths, startOfWeek, endOfWeek, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { exportBarberReportPdf } from '../../utils/pdfExport';
 
 export default function AdminRelatorios() {
-  const { state } = useAppContext();
-  const [expandedBarberId, setExpandedBarberId] = useState<string | null>(null);
+  const { state, triggerTestNotification } = useAppContext();
+  const { barbearia } = useBarbearia();
+
+  const authData = sessionStorage.getItem('app_auth_state');
+  const authState = authData ? JSON.parse(authData) : null;
+  const isBarbeiro = authState?.role === 'BARBEIRO';
+  const currentBarbeiroId = authState?.barbeiroId;
+
+  const [expandedBarberId, setExpandedBarberId] = useState<string | null>(isBarbeiro ? (currentBarbeiroId || null) : null);
+
+  useEffect(() => {
+    if (isBarbeiro && currentBarbeiroId && !expandedBarberId) {
+      setExpandedBarberId(currentBarbeiroId);
+    }
+  }, [isBarbeiro, currentBarbeiroId]);
 
   // Date Filter State
   const now = new Date();
@@ -158,6 +173,13 @@ export default function AdminRelatorios() {
     });
   }, [state.barbers, filteredAppointments, state.transactions, state.services]);
 
+  const displayedBarberFinances = useMemo(() => {
+    if (isBarbeiro && currentBarbeiroId) {
+      return barberFinances.filter(bf => bf.barber.id.toLowerCase() === currentBarbeiroId.toLowerCase());
+    }
+    return barberFinances;
+  }, [barberFinances, isBarbeiro, currentBarbeiroId]);
+
   const periodLabel = useMemo(() => {
     if (datePreset === 'ALL') return 'Todo o Histórico';
     if (!startDate || !endDate) return 'Período Personalizado';
@@ -174,13 +196,24 @@ export default function AdminRelatorios() {
     <div className="space-y-6">
       {/* HEADER E FILTRO DE DATA */}
       <div className="bg-[#0C0C0C] border border-[#222] p-6 rounded-2xl flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-white tracking-tight flex items-center gap-2">
-            <BarChart3 className="text-[#C5A059]" /> Relatórios Gerenciais
-          </h1>
-          <p className="text-[#777] text-sm mt-1">
-            Exibindo dados do período: <strong className="text-[#C5A059]">{periodLabel}</strong>
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 w-full xl:w-auto">
+          <div>
+            <h1 className="text-2xl font-semibold text-white tracking-tight flex items-center gap-2">
+              <BarChart3 className="text-[#C5A059]" /> Relatórios Gerenciais
+            </h1>
+            <p className="text-[#777] text-sm mt-1">
+              Exibindo dados do período: <strong className="text-[#C5A059]">{periodLabel}</strong>
+            </p>
+          </div>
+
+          <button 
+            onClick={() => triggerTestNotification()}
+            className="flex items-center gap-2 bg-[#1A1A1A] hover:bg-[#252525] text-[#C5A059] px-3.5 py-2 rounded-xl border border-[#C5A05944] transition-all cursor-pointer text-xs font-semibold shadow-sm hover:border-[#C5A059] self-start sm:self-auto"
+            title="Testar Notificação em Tempo Real e Alarme Sonoro"
+          >
+            <Bell size={16} className="text-[#C5A059]" />
+            <span>Testar Som & Notificações</span>
+          </button>
         </div>
 
         {/* SELETOR DE INTERVALO DE DATAS (DATEPICKER) */}
@@ -360,7 +393,7 @@ export default function AdminRelatorios() {
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {barberFinances.map(({ barber, count, gross, commission, net, detailedServices }) => {
+          {displayedBarberFinances.map(({ barber, count, gross, commission, net, detailedServices }) => {
             const isExpanded = expandedBarberId === barber.id;
             return (
               <div key={barber.id} className={`bg-[#1A1A1A] border ${isExpanded ? 'border-[#C5A059]' : 'border-[#333] hover:border-[#C5A05944]'} rounded-xl transition-all overflow-hidden`}>
@@ -388,18 +421,59 @@ export default function AdminRelatorios() {
                       <span className="text-white">Líquido Barbearia:</span>
                       <span className="text-[#00C853] font-bold">R$ {net.toFixed(2)}</span>
                     </div>
-                    <button
-                      onClick={() => setExpandedBarberId(isExpanded ? null : barber.id)}
-                      className="w-full py-2 bg-[#C5A05915] hover:bg-[#C5A05930] text-[#C5A059] border border-[#C5A05944] rounded-lg text-xs font-bold transition-all uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer"
-                    >
-                      {isExpanded ? 'Ocultar Detalhes' : 'Ver Detalhes'}
-                      {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                    </button>
+                    <div className="grid grid-cols-2 gap-2 border-t border-[#222] pt-3 mt-3">
+                      <button
+                        onClick={() => setExpandedBarberId(isExpanded ? null : barber.id)}
+                        className="py-2 bg-[#C5A05915] hover:bg-[#C5A05930] text-[#C5A059] border border-[#C5A05944] rounded-lg text-xs font-bold transition-all uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        {isExpanded ? 'Ocultar' : 'Ver Detalhes'}
+                        {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                      </button>
+
+                      <button
+                        onClick={() => exportBarberReportPdf({
+                          barbeariaName: barbearia?.nome || 'Barbearia',
+                          barberName: barber.name,
+                          periodLabel,
+                          comissaoPercent: barber.comissao || 0,
+                          detailedServices,
+                          totalCortes: count,
+                          totalBruto: gross,
+                          totalComissao: commission
+                        })}
+                        className="py-2 bg-[#C5A059] hover:bg-[#d4af66] text-black rounded-lg text-xs font-bold transition-all uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer shadow"
+                        title="Exportar PDF com todos os cortes deste barbeiro"
+                      >
+                        <FileText size={14} />
+                        <span>Exportar PDF</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
 
                 {isExpanded && (
-                  <div className="bg-[#111] border-t border-[#333] p-4 max-h-80 overflow-y-auto custom-scrollbar">
+                  <div className="bg-[#111] border-t border-[#333] p-4 max-h-96 overflow-y-auto custom-scrollbar">
+                    <div className="flex justify-between items-center mb-3 pb-2 border-b border-[#222]">
+                      <span className="text-xs font-bold text-gray-300">Detalhamento dos Cortes</span>
+                      <button
+                        onClick={() => exportBarberReportPdf({
+                          barbeariaName: barbearia?.nome || 'Barbearia',
+                          barberName: barber.name,
+                          periodLabel,
+                          comissaoPercent: barber.comissao || 0,
+                          detailedServices,
+                          totalCortes: count,
+                          totalBruto: gross,
+                          totalComissao: commission
+                        })}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-[#C5A059] hover:bg-[#d4af66] text-black text-xs font-bold rounded-lg transition-all shadow cursor-pointer"
+                        title="Exportar relatório em PDF com todos os cortes"
+                      >
+                        <FileText size={14} />
+                        <span>Exportar PDF</span>
+                      </button>
+                    </div>
+
                     {detailedServices.length === 0 ? (
                       <p className="text-center text-[#777] text-xs py-4">Nenhum serviço realizado neste período.</p>
                     ) : (

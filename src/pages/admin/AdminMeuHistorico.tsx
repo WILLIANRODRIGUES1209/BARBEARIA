@@ -1,8 +1,8 @@
 import React, { useMemo, useEffect, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { useBarbearia } from '../../context/BarbeariaContext';
-import { DollarSign, Scissors, Calendar as CalendarIcon, RefreshCw, Pencil, Trash2, X, Check } from 'lucide-react';
-import { format, parseISO } from 'date-fns';
+import { DollarSign, Scissors, Calendar as CalendarIcon, RefreshCw, Pencil, Trash2, X, Check, Bell, Filter, FileText } from 'lucide-react';
+import { format, parseISO, startOfDay, endOfDay, isWithinInterval, startOfMonth, endOfMonth, startOfWeek, endOfWeek, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import TransactionHistoryList from '../../components/TransactionHistoryList';
 import { confirmUI } from '../../utils/confirmUI';
@@ -10,14 +10,70 @@ import toast from 'react-hot-toast';
 import { supabase } from '../../supabase';
 import { retryCall } from '../../utils/dbRetry';
 import RlsHelpModal from '../../components/RlsHelpModal';
+import { exportBarberReportPdf } from '../../utils/pdfExport';
 
 export default function AdminMeuHistorico() {
-  const { state, refreshData, updateTransaction, deleteTransaction, addAppointment, addTransaction } = useAppContext();
+  const { state, refreshData, updateTransaction, deleteTransaction, triggerTestNotification } = useAppContext();
   const { barbearia } = useBarbearia();
   const [selectedCorte, setSelectedCorte] = useState<any | null>(null);
   const [editAmount, setEditAmount] = useState<number>(0);
   const [isSubmittingModal, setIsSubmittingModal] = useState<boolean>(false);
   const [rlsHelpOpen, setRlsHelpOpen] = useState<boolean>(false);
+
+  // Date Filter State
+  const now = new Date();
+  const [datePreset, setDatePreset] = useState<'TODAY' | 'THIS_WEEK' | 'THIS_MONTH' | 'LAST_MONTH' | 'ALL' | 'CUSTOM'>('THIS_MONTH');
+  const [startDate, setStartDate] = useState<string>(format(startOfMonth(now), 'yyyy-MM-dd'));
+  const [endDate, setEndDate] = useState<string>(format(endOfMonth(now), 'yyyy-MM-dd'));
+
+  const handlePresetChange = (preset: 'TODAY' | 'THIS_WEEK' | 'THIS_MONTH' | 'LAST_MONTH' | 'ALL') => {
+    setDatePreset(preset);
+    const currentDate = new Date();
+    if (preset === 'TODAY') {
+      setStartDate(format(currentDate, 'yyyy-MM-dd'));
+      setEndDate(format(currentDate, 'yyyy-MM-dd'));
+    } else if (preset === 'THIS_WEEK') {
+      setStartDate(format(startOfWeek(currentDate, { weekStartsOn: 1 }), 'yyyy-MM-dd'));
+      setEndDate(format(endOfWeek(currentDate, { weekStartsOn: 1 }), 'yyyy-MM-dd'));
+    } else if (preset === 'THIS_MONTH') {
+      setStartDate(format(startOfMonth(currentDate), 'yyyy-MM-dd'));
+      setEndDate(format(endOfMonth(currentDate), 'yyyy-MM-dd'));
+    } else if (preset === 'LAST_MONTH') {
+      const prev = subMonths(currentDate, 1);
+      setStartDate(format(startOfMonth(prev), 'yyyy-MM-dd'));
+      setEndDate(format(endOfMonth(prev), 'yyyy-MM-dd'));
+    } else if (preset === 'ALL') {
+      setStartDate('');
+      setEndDate('');
+    }
+  };
+
+  const isDateInInterval = (dateStr: string) => {
+    if (!dateStr) return false;
+    if (datePreset === 'ALL') return true;
+    if (!startDate || !endDate) return true;
+    try {
+      const d = parseISO(dateStr);
+      if (isNaN(d.getTime())) return false;
+      const start = startOfDay(parseISO(startDate));
+      const end = endOfDay(parseISO(endDate));
+      return isWithinInterval(d, { start, end });
+    } catch (e) {
+      return false;
+    }
+  };
+
+  const periodLabel = useMemo(() => {
+    if (datePreset === 'ALL') return 'Todo o Histórico';
+    if (!startDate || !endDate) return 'Período Personalizado';
+    try {
+      const s = format(parseISO(startDate), 'dd/MM/yyyy');
+      const e = format(parseISO(endDate), 'dd/MM/yyyy');
+      return `${s} até ${e}`;
+    } catch {
+      return 'Período Selecionado';
+    }
+  }, [datePreset, startDate, endDate]);
 
   useEffect(() => {
     refreshData();
@@ -30,14 +86,14 @@ export default function AdminMeuHistorico() {
   const barbeiro = state.barbers.find(b => b.id === currentBarbeiroId);
   const comissaoPercent = barbeiro?.comissao || 0;
 
-  // Encontrar agendamentos deste barbeiro que foram concluídos
+  // Encontrar agendamentos deste barbeiro que foram concluídos e filtrados por data
   const agendamentos = useMemo(() => {
     if (!currentBarbeiroId) return [];
     
     const barberIdLower = currentBarbeiroId.toLowerCase();
     
     return state.appointments
-      .filter(a => a.barberId?.toLowerCase() === barberIdLower && a.status === 'COMPLETED')
+      .filter(a => a.barberId?.toLowerCase() === barberIdLower && a.status === 'COMPLETED' && isDateInInterval(a.date))
       .map(appt => {
         const service = state.services.find(s => s.id === appt.serviceId);
         const defaultServicePrice = service?.price || 0;
@@ -126,7 +182,7 @@ export default function AdminMeuHistorico() {
         };
       })
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [state.appointments, state.services, state.transactions, currentBarbeiroId, comissaoPercent, barbeiro]);
+  }, [state.appointments, state.services, state.transactions, currentBarbeiroId, comissaoPercent, barbeiro, startDate, endDate, datePreset]);
 
   const totalComissoes = agendamentos.reduce((acc, curr) => acc + curr.valorComissao, 0);
   const totalBruto = agendamentos.reduce((acc, curr) => acc + curr.valorServico, 0);
@@ -238,18 +294,117 @@ export default function AdminMeuHistorico() {
       <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white mb-2">Meu Histórico e Comissões</h1>
-          <p className="text-sm text-[#777]">Acompanhe seus cortes realizados e comissões</p>
+          <p className="text-sm text-[#777]">
+            Exibindo dados do período: <strong className="text-[#C5A059]">{periodLabel}</strong>
+          </p>
         </div>
-        <button 
-          onClick={() => {
-            refreshData();
-          }}
-          className="flex items-center justify-center gap-2 self-start px-4 py-2.5 bg-[#121212] hover:bg-[#1A1A1A] border border-[#222] hover:border-[#C5A059] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer"
-        >
-          <RefreshCw size={14} className="text-[#C5A059]" />
-          Atualizar Dados
-        </button>
+        <div className="flex items-center gap-3 flex-wrap">
+          <button
+            onClick={() => exportBarberReportPdf({
+              barbeariaName: barbearia?.nome || 'Barbearia',
+              barberName: barbeiro?.name || 'Barbeiro',
+              periodLabel,
+              comissaoPercent,
+              detailedServices: agendamentos,
+              totalCortes,
+              totalBruto,
+              totalComissao: totalComissoes
+            })}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-[#C5A059] hover:bg-[#d4af66] text-black text-xs font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-md"
+            title="Exportar todos os cortes e comissões em PDF"
+          >
+            <FileText size={16} />
+            <span>Exportar PDF</span>
+          </button>
+
+          <button 
+            onClick={() => triggerTestNotification()}
+            className="flex items-center gap-2 bg-[#1A1A1A] hover:bg-[#252525] text-[#C5A059] px-3.5 py-2.5 rounded-xl border border-[#C5A05944] transition-all cursor-pointer text-xs font-semibold shadow-sm hover:border-[#C5A059]"
+            title="Testar Notificação em Tempo Real e Alarme Sonoro"
+          >
+            <Bell size={16} className="text-[#C5A059]" />
+            <span>Testar Som & Notificações</span>
+          </button>
+
+          <button 
+            onClick={() => {
+              refreshData();
+            }}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-[#121212] hover:bg-[#1A1A1A] border border-[#222] hover:border-[#C5A059] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer"
+          >
+            <RefreshCw size={14} className="text-[#C5A059]" />
+            Atualizar Dados
+          </button>
+        </div>
       </header>
+
+      {/* SELETOR DE INTERVALO DE DATAS (DATEPICKER) */}
+      <div className="bg-[#0C0C0C] border border-[#222] p-4 sm:p-5 rounded-2xl flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+        <div className="flex items-center gap-2 text-xs font-bold text-[#C5A059]">
+          <Filter size={16} />
+          <span>Filtrar Período de Atendimento:</span>
+        </div>
+
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3 bg-[#141414] border border-[#333] p-2.5 rounded-xl">
+          <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar pb-1 lg:pb-0">
+            <button
+              onClick={() => handlePresetChange('TODAY')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all whitespace-nowrap cursor-pointer ${datePreset === 'TODAY' ? 'bg-[#C5A059] text-black shadow-md' : 'text-gray-400 hover:text-white hover:bg-[#222]'}`}
+            >
+              Hoje
+            </button>
+            <button
+              onClick={() => handlePresetChange('THIS_WEEK')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all whitespace-nowrap cursor-pointer ${datePreset === 'THIS_WEEK' ? 'bg-[#C5A059] text-black shadow-md' : 'text-gray-400 hover:text-white hover:bg-[#222]'}`}
+            >
+              Esta Semana
+            </button>
+            <button
+              onClick={() => handlePresetChange('THIS_MONTH')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all whitespace-nowrap cursor-pointer ${datePreset === 'THIS_MONTH' ? 'bg-[#C5A059] text-black shadow-md' : 'text-gray-400 hover:text-white hover:bg-[#222]'}`}
+            >
+              Este Mês
+            </button>
+            <button
+              onClick={() => handlePresetChange('LAST_MONTH')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all whitespace-nowrap cursor-pointer ${datePreset === 'LAST_MONTH' ? 'bg-[#C5A059] text-black shadow-md' : 'text-gray-400 hover:text-white hover:bg-[#222]'}`}
+            >
+              Mês Anterior
+            </button>
+            <button
+              onClick={() => handlePresetChange('ALL')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all whitespace-nowrap cursor-pointer ${datePreset === 'ALL' ? 'bg-[#C5A059] text-black shadow-md' : 'text-gray-400 hover:text-white hover:bg-[#222]'}`}
+            >
+              Tudo
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 border-t lg:border-t-0 lg:border-l border-[#333] pt-2 lg:pt-0 lg:pl-3">
+            <div className="flex items-center gap-1.5 text-xs text-gray-300">
+              <CalendarIcon size={14} className="text-[#C5A059] shrink-0" />
+              <input 
+                type="date"
+                value={startDate}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  setDatePreset('CUSTOM');
+                }}
+                className="bg-[#1A1A1A] text-white border border-[#333] rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-[#C5A059] cursor-pointer"
+              />
+              <span className="text-gray-500">até</span>
+              <input 
+                type="date"
+                value={endDate}
+                onChange={(e) => {
+                  setEndDate(e.target.value);
+                  setDatePreset('CUSTOM');
+                }}
+                className="bg-[#1A1A1A] text-white border border-[#333] rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-[#C5A059] cursor-pointer"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-[#121212] p-6 rounded-2xl border border-[#222]">
@@ -295,10 +450,34 @@ export default function AdminMeuHistorico() {
 
       <div className="bg-[#121212] rounded-2xl border border-[#222] overflow-hidden">
         <div className="p-6 border-b border-[#222] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-[#161616]">
-          <h2 className="text-lg font-bold text-white">Histórico de Serviços Concluídos</h2>
-          <span className="text-[10px] text-[#777] uppercase tracking-widest font-extrabold text-right">
-            💡 Clique em 'Editar Valor' ao lado de qualquer corte para corrigir o valor recebido e a comissão correspondente em todo o sistema.
-          </span>
+          <div className="flex items-center gap-3">
+            <h2 className="text-lg font-bold text-white">Histórico de Serviços Concluídos</h2>
+            <span className="bg-[#C5A05922] text-[#C5A059] text-xs px-2.5 py-1 rounded-lg font-bold">
+              {totalCortes} {totalCortes === 1 ? 'corte' : 'cortes'}
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => exportBarberReportPdf({
+                barbeariaName: barbearia?.nome || 'Barbearia',
+                barberName: barbeiro?.name || 'Barbeiro',
+                periodLabel,
+                comissaoPercent,
+                detailedServices: agendamentos,
+                totalCortes,
+                totalBruto,
+                totalComissao: totalComissoes
+              })}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#C5A059] hover:bg-[#d4af66] text-black text-xs font-bold rounded-lg transition-all shadow cursor-pointer"
+              title="Exportar PDF do histórico de cortes"
+            >
+              <FileText size={14} />
+              <span>Exportar PDF</span>
+            </button>
+            <span className="hidden lg:inline text-[10px] text-[#777] uppercase tracking-widest font-extrabold text-right">
+              💡 Clique em 'Editar Valor' para corrigir comissões.
+            </span>
+          </div>
         </div>
         
         {agendamentos.length === 0 ? (
@@ -400,7 +579,7 @@ export default function AdminMeuHistorico() {
       <div className="bg-[#121212] rounded-2xl border border-[#222] p-6 mt-6">
         <h2 className="text-lg font-bold text-white mb-2">Histórico & Correções de Caixas</h2>
         <p className="text-xs text-[#777] mb-6">Aqui você pode visualizar seus recebimentos e excluir lançamentos se registrados com alguma divergência ou por engano.</p>
-        <TransactionHistoryList barberName={barbeiro?.name} showFilters={true} hideEdit={true} />
+        <TransactionHistoryList barberName={barbeiro?.name} showFilters={true} hideEdit={true} startDate={startDate} endDate={endDate} />
       </div>
 
       {/* Touch-optimized Corte Adjustment Modal */}

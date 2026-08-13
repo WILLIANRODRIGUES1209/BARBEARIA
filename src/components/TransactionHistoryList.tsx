@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Pencil, Trash2, Check, X, Search, Calendar as CalendarIcon, TrendingUp, TrendingDown } from 'lucide-react';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { confirmUI } from '../utils/confirmUI';
 import { Transaction } from '../types';
 
@@ -10,9 +10,11 @@ interface Props {
   showFilters?: boolean;
   barberName?: string;
   hideEdit?: boolean;
+  startDate?: string;
+  endDate?: string;
 }
 
-export default function TransactionHistoryList({ maxItems, showFilters = true, barberName, hideEdit = false }: Props) {
+export default function TransactionHistoryList({ maxItems, showFilters = true, barberName, hideEdit = false, startDate, endDate }: Props) {
   const { state, updateTransaction, deleteTransaction } = useAppContext();
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<'ALL' | 'INCOME' | 'EXPENSE'>('ALL');
@@ -25,6 +27,20 @@ export default function TransactionHistoryList({ maxItems, showFilters = true, b
 
   const filteredTransactions = useMemo(() => {
     let list = [...state.transactions];
+
+    // Filter by date range if provided
+    if (startDate && endDate) {
+      try {
+        const start = startOfDay(parseISO(startDate));
+        const end = endOfDay(parseISO(endDate));
+        list = list.filter(t => {
+          if (!t.date) return false;
+          const d = parseISO(t.date);
+          if (isNaN(d.getTime())) return false;
+          return isWithinInterval(d, { start, end });
+        });
+      } catch (e) {}
+    }
 
     // Filter by barberName if provided
     if (barberName) {
@@ -74,7 +90,7 @@ export default function TransactionHistoryList({ maxItems, showFilters = true, b
     }
 
     return list;
-  }, [state.transactions, typeFilter, searchTerm, maxItems, barberName]);
+  }, [state.transactions, typeFilter, searchTerm, maxItems, barberName, startDate, endDate]);
 
   const handleOpenEdit = (t: Transaction) => {
     setEditingTransaction(t);

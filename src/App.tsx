@@ -56,7 +56,7 @@ const AdminLayout = ({ children, onLogout, authState }: { children: React.ReactN
     { name: 'Barbeiros', path: '/admin/barbeiros', icon: Scissors, adminOnly: true },
     { name: 'Estoque', path: '/admin/estoque', icon: Package, adminOnly: true },
     { name: 'Financeiro', path: '/admin/financeiro', icon: DollarSign, adminOnly: true },
-    { name: 'Relatórios', path: '/admin/relatorios', icon: BarChart3, adminOnly: true },
+    { name: 'Relatórios', path: '/admin/relatorios', icon: BarChart3, adminOnly: false },
     { name: 'Configurações', path: '/admin/configuracoes', icon: Settings, adminOnly: true },
   ];
 
@@ -304,7 +304,7 @@ export default function App() {
             <Route path="/admin/barbeiros" element={<ProtectedRoute requireAdmin><AdminBarbeiros /></ProtectedRoute>} />
             <Route path="/admin/estoque" element={<ProtectedRoute requireAdmin><AdminEstoque /></ProtectedRoute>} />
             <Route path="/admin/financeiro" element={<ProtectedRoute requireAdmin><AdminFinanceiro /></ProtectedRoute>} />
-            <Route path="/admin/relatorios" element={<ProtectedRoute requireAdmin><AdminRelatorios /></ProtectedRoute>} />
+            <Route path="/admin/relatorios" element={<ProtectedRoute><AdminRelatorios /></ProtectedRoute>} />
             <Route path="/admin/configuracoes" element={<ProtectedRoute requireAdmin><AdminConfig /></ProtectedRoute>} />
 
             <Route path="*" element={<Navigate to="/" replace />} />
