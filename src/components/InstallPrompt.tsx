@@ -8,17 +8,20 @@ export default function InstallPrompt() {
   const [isStandalone, setIsStandalone] = useState(false);
 
   useEffect(() => {
+    // Check if already installed
     const isAppStandalone =
       window.matchMedia("(display-mode: standalone)").matches ||
       ("standalone" in window.navigator &&
         (window.navigator as any).standalone);
     setIsStandalone(isAppStandalone);
 
+    // Detect iOS
     const userAgent = window.navigator.userAgent.toLowerCase();
     const isIOSDevice = /iphone|ipad|ipod/.test(userAgent);
     setIsIOS(isIOSDevice);
 
     if (isIOSDevice && !isAppStandalone) {
+      // Show iOS prompt after a short delay
       const timer = setTimeout(() => {
         const hasSeenPrompt = localStorage.getItem("hasSeenIOSPrompt");
         if (!hasSeenPrompt) {
@@ -35,6 +38,7 @@ export default function InstallPrompt() {
     };
 
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+
     return () => {
       window.removeEventListener(
         "beforeinstallprompt",
@@ -72,6 +76,7 @@ export default function InstallPrompt() {
         >
           <X size={18} />
         </button>
+
         <div className="flex items-center gap-4">
           <div className="bg-[#E5B869] text-black p-3 rounded-xl shrink-0">
             <Download size={24} />
@@ -86,6 +91,7 @@ export default function InstallPrompt() {
             </p>
           </div>
         </div>
+
         {isIOS ? (
           <div className="mt-2 bg-[#222] p-3 rounded-xl border border-[#333]">
             <p className="text-[#CCC] text-xs text-center">
