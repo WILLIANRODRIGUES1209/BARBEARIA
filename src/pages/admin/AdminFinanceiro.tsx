@@ -524,44 +524,52 @@ export default function AdminFinanceiro() {
 
       <div className="bg-[#121212] rounded-2xl shadow-xl border border-[#222] overflow-hidden">
         <div className="p-6 border-b border-[#222]">
-          <h2 className="text-lg font-medium text-white mb-4">Recebimentos por Forma de Pagamento</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <button 
-              onClick={() => setPaymentMethodFilter(paymentMethodFilter === 'PIX' ? 'ALL' : 'PIX')}
-              className={`p-4 rounded-xl border text-left transition-colors ${paymentMethodFilter === 'PIX' ? 'bg-[#00C85322] border-[#00C853] shadow-[0_0_15px_#00C85333]' : 'bg-[#1A1A1A] border-[#333] hover:border-[#555]'}`}
-            >
-              <h3 className={`text-[10px] uppercase tracking-wider mb-2 ${paymentMethodFilter === 'PIX' ? 'text-[#00C853]' : 'text-[#888]'}`}>PIX</h3>
-              <p className={`text-xl font-medium ${paymentMethodFilter === 'PIX' ? 'text-[#00C853]' : 'text-white'}`}>R$ {totalsByMethod['PIX'].toFixed(2)}</p>
-            </button>
-            <button 
-              onClick={() => setPaymentMethodFilter(paymentMethodFilter === 'Cartão de Crédito' ? 'ALL' : 'Cartão de Crédito')}
-              className={`p-4 rounded-xl border text-left transition-colors ${paymentMethodFilter === 'Cartão de Crédito' ? 'bg-[#00C85322] border-[#00C853] shadow-[0_0_15px_#00C85333]' : 'bg-[#1A1A1A] border-[#333] hover:border-[#555]'}`}
-            >
-              <h3 className={`text-[10px] uppercase tracking-wider mb-2 ${paymentMethodFilter === 'Cartão de Crédito' ? 'text-[#00C853]' : 'text-[#888]'}`}>Crédito</h3>
-              <p className={`text-xl font-medium ${paymentMethodFilter === 'Cartão de Crédito' ? 'text-[#00C853]' : 'text-white'}`}>R$ {totalsByMethod['Cartão de Crédito'].toFixed(2)}</p>
-            </button>
-            <button 
-              onClick={() => setPaymentMethodFilter(paymentMethodFilter === 'Cartão de Débito' ? 'ALL' : 'Cartão de Débito')}
-              className={`p-4 rounded-xl border text-left transition-colors ${paymentMethodFilter === 'Cartão de Débito' ? 'bg-[#00C85322] border-[#00C853] shadow-[0_0_15px_#00C85333]' : 'bg-[#1A1A1A] border-[#333] hover:border-[#555]'}`}
-            >
-              <h3 className={`text-[10px] uppercase tracking-wider mb-2 ${paymentMethodFilter === 'Cartão de Débito' ? 'text-[#00C853]' : 'text-[#888]'}`}>Débito</h3>
-              <p className={`text-xl font-medium ${paymentMethodFilter === 'Cartão de Débito' ? 'text-[#00C853]' : 'text-white'}`}>R$ {totalsByMethod['Cartão de Débito'].toFixed(2)}</p>
-            </button>
-            <button 
-              onClick={() => setPaymentMethodFilter(paymentMethodFilter === 'Dinheiro' ? 'ALL' : 'Dinheiro')}
-              className={`p-4 rounded-xl border text-left transition-colors ${paymentMethodFilter === 'Dinheiro' ? 'bg-[#00C85322] border-[#00C853] shadow-[0_0_15px_#00C85333]' : 'bg-[#1A1A1A] border-[#333] hover:border-[#555]'}`}
-            >
-              <h3 className={`text-[10px] uppercase tracking-wider mb-2 ${paymentMethodFilter === 'Dinheiro' ? 'text-[#00C853]' : 'text-[#888]'}`}>Dinheiro</h3>
-              <p className={`text-xl font-medium ${paymentMethodFilter === 'Dinheiro' ? 'text-[#00C853]' : 'text-white'}`}>R$ {totalsByMethod['Dinheiro'].toFixed(2)}</p>
-            </button>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+            <div>
+              <h2 className="text-lg font-medium text-white">Recebimentos por Forma de Pagamento</h2>
+              <p className="text-sm text-gray-400 mt-1">Total {paymentMethodFilter !== 'ALL' ? `(${paymentMethodFilter})` : 'Geral'}</p>
+            </div>
+            <div className="md:text-right">
+              <p className="text-3xl font-bold text-[#00C853]">
+                R$ {paymentMethodFilter === 'ALL' ? (totalsByMethod['PIX'] + totalsByMethod['Cartão de Crédito'] + totalsByMethod['Cartão de Débito'] + totalsByMethod['Dinheiro']).toFixed(2) : totalsByMethod[paymentMethodFilter as keyof typeof totalsByMethod].toFixed(2)}
+              </p>
+            </div>
           </div>
-          {paymentMethodFilter !== 'ALL' && (
-             <div className="mt-4 flex items-center gap-2">
-                <span className="text-xs text-[#E0E0E0]">Filtrando por: <strong className="text-[#00C853]">{paymentMethodFilter}</strong></span>
-                <button onClick={() => setPaymentMethodFilter('ALL')} className="text-[#FF3D00] hover:underline text-xs flex items-center gap-1">
-                   Limpar Filtro <X size={12} />
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {(['PIX', 'Cartão de Crédito', 'Cartão de Débito', 'Dinheiro'] as const).map((method) => {
+              const isSelected = paymentMethodFilter === method;
+              const isMuted = paymentMethodFilter !== 'ALL' && !isSelected;
+              const value = isMuted ? 0 : totalsByMethod[method];
+              
+              return (
+                <button 
+                  key={method}
+                  onClick={() => setPaymentMethodFilter(isSelected ? 'ALL' : method)}
+                  className={`p-4 rounded-xl border text-left transition-colors cursor-pointer ${
+                    isSelected 
+                      ? 'bg-[#00C85322] border-[#00C853] shadow-[0_0_15px_#00C85333]' 
+                      : 'bg-[#1A1A1A] border-[#333] hover:border-[#555]'
+                  }`}
+                >
+                  <h3 className={`text-[10px] uppercase tracking-wider mb-2 ${isSelected ? 'text-[#00C853]' : 'text-[#888]'}`}>
+                    {method}
+                  </h3>
+                  <p className={`text-xl font-medium ${isSelected ? 'text-[#00C853]' : isMuted ? 'text-[#444]' : 'text-white'}`}>
+                    R$ {value.toFixed(2)}
+                  </p>
                 </button>
-             </div>
+              )
+            })}
+          </div>
+          
+          {paymentMethodFilter !== 'ALL' && (
+            <div className="mt-4 pt-4 border-t border-[#222] flex items-center justify-between">
+               <span className="text-xs text-[#E0E0E0]">Filtrando por: <strong className="text-[#00C853]">{paymentMethodFilter}</strong></span>
+               <button onClick={() => setPaymentMethodFilter('ALL')} className="text-[#FF3D00] hover:text-[#ff5c29] text-xs flex items-center gap-1 font-bold uppercase cursor-pointer">
+                  <X size={14} /> Limpar Filtro
+               </button>
+            </div>
           )}
         </div>
       <div className="space-y-4 pt-6">

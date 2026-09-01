@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { useBarbearia } from '../../context/BarbeariaContext';
 import { BarChart3, TrendingUp, Users, Calendar, DollarSign, ChevronDown, ChevronUp, Filter, RefreshCw, Bell, FileText } from 'lucide-react';
-import { startOfDay, endOfDay, isWithinInterval, startOfMonth, endOfMonth, parseISO, subMonths, startOfWeek, endOfWeek, format } from 'date-fns';
+import { startOfDay, endOfDay, isWithinInterval, startOfMonth, endOfMonth, parseISO, subMonths, startOfWeek, endOfWeek, subDays, addDays, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { exportBarberReportPdf } from '../../utils/pdfExport';
 
@@ -25,35 +25,36 @@ export default function AdminRelatorios() {
 
   // Date Filter State
   const now = new Date();
-  const [datePreset, setDatePreset] = useState<'TODAY' | 'THIS_WEEK' | 'THIS_MONTH' | 'LAST_MONTH' | 'ALL' | 'CUSTOM'>('THIS_MONTH');
-  const [startDate, setStartDate] = useState<string>(format(startOfMonth(now), 'yyyy-MM-dd'));
-  const [endDate, setEndDate] = useState<string>(format(endOfMonth(now), 'yyyy-MM-dd'));
+  const [filterMode, setFilterMode] = useState<'DEFAULT' | 'CLOSED_WEEK' | 'CUSTOM'>('DEFAULT');
+  const [closedWeekOffset, setClosedWeekOffset] = useState<number>(1);
+  const [customStartDate, setCustomStartDate] = useState<string>(format(startOfMonth(now), 'yyyy-MM-dd'));
+  const [customEndDate, setCustomEndDate] = useState<string>(format(endOfMonth(now), 'yyyy-MM-dd'));
 
-  const handlePresetChange = (preset: 'TODAY' | 'THIS_WEEK' | 'THIS_MONTH' | 'LAST_MONTH' | 'ALL') => {
-    setDatePreset(preset);
-    const currentDate = new Date();
-    if (preset === 'TODAY') {
-      setStartDate(format(currentDate, 'yyyy-MM-dd'));
-      setEndDate(format(currentDate, 'yyyy-MM-dd'));
-    } else if (preset === 'THIS_WEEK') {
-      setStartDate(format(startOfWeek(currentDate, { weekStartsOn: 1 }), 'yyyy-MM-dd'));
-      setEndDate(format(endOfWeek(currentDate, { weekStartsOn: 1 }), 'yyyy-MM-dd'));
-    } else if (preset === 'THIS_MONTH') {
-      setStartDate(format(startOfMonth(currentDate), 'yyyy-MM-dd'));
-      setEndDate(format(endOfMonth(currentDate), 'yyyy-MM-dd'));
-    } else if (preset === 'LAST_MONTH') {
-      const prev = subMonths(currentDate, 1);
-      setStartDate(format(startOfMonth(prev), 'yyyy-MM-dd'));
-      setEndDate(format(endOfMonth(prev), 'yyyy-MM-dd'));
-    } else if (preset === 'ALL') {
-      setStartDate('');
-      setEndDate('');
+  const { startDate, endDate } = useMemo(() => {
+    if (filterMode === 'CLOSED_WEEK') {
+      const currentWeekStart = startOfWeek(now, { weekStartsOn: 1 });
+      const targetWeekStart = subDays(currentWeekStart, closedWeekOffset * 7);
+      const targetWeekEnd = endOfWeek(targetWeekStart, { weekStartsOn: 1 });
+      return {
+        startDate: format(targetWeekStart, 'yyyy-MM-dd'),
+        endDate: format(targetWeekEnd, 'yyyy-MM-dd')
+      };
+    } else if (filterMode === 'CUSTOM') {
+      return {
+        startDate: customStartDate,
+        endDate: customEndDate
+      };
+    } else {
+      // DEFAULT (THIS_MONTH / ALL)
+      return {
+        startDate: format(startOfMonth(now), 'yyyy-MM-dd'),
+        endDate: format(endOfMonth(now), 'yyyy-MM-dd')
+      };
     }
-  };
+  }, [filterMode, closedWeekOffset, customStartDate, customEndDate, now]);
 
   const isDateInInterval = (dateStr: string) => {
     if (!dateStr) return false;
-    if (datePreset === 'ALL') return true;
     if (!startDate || !endDate) return true;
     try {
       const d = parseISO(dateStr);
@@ -69,11 +70,11 @@ export default function AdminRelatorios() {
   // Filtered Data Sets
   const filteredTransactions = useMemo(() => {
     return state.transactions.filter(t => isDateInInterval(t.date));
-  }, [state.transactions, startDate, endDate, datePreset]);
+  }, [state.transactions, startDate, endDate, filterMode]);
 
   const filteredAppointments = useMemo(() => {
     return state.appointments.filter(a => isDateInInterval(a.date));
-  }, [state.appointments, startDate, endDate, datePreset]);
+  }, [state.appointments, startDate, endDate, filterMode]);
 
   // Last Month comparison values
   const lastMonthStart = startOfMonth(subMonths(now, 1));
@@ -181,7 +182,7 @@ export default function AdminRelatorios() {
   }, [barberFinances, isBarbeiro, currentBarbeiroId]);
 
   const periodLabel = useMemo(() => {
-    if (datePreset === 'ALL') return 'Todo o Histórico';
+    if (filterMode === 'ALL_NOT_USED') return 'Todo o Histórico';
     if (!startDate || !endDate) return 'Período Personalizado';
     try {
       const s = format(parseISO(startDate), 'dd/MM/yyyy');
@@ -190,7 +191,7 @@ export default function AdminRelatorios() {
     } catch {
       return 'Período Selecionado';
     }
-  }, [datePreset, startDate, endDate]);
+  }, [filterMode, startDate, endDate]);
 
   return (
     <div className="space-y-6">
@@ -216,64 +217,78 @@ export default function AdminRelatorios() {
           </button>
         </div>
 
-        {/* SELETOR DE INTERVALO DE DATAS (DATEPICKER) */}
+                {/* SELETOR DE INTERVALO DE DATAS */}
         <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3 bg-[#141414] border border-[#333] p-2.5 rounded-xl">
-          <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar pb-1 lg:pb-0">
+          <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar pb-1 lg:pb-0 shrink-0">
             <button
-              onClick={() => handlePresetChange('TODAY')}
-              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all whitespace-nowrap cursor-pointer ${datePreset === 'TODAY' ? 'bg-[#C5A059] text-black shadow-md' : 'text-gray-400 hover:text-white hover:bg-[#222]'}`}
+              onClick={() => setFilterMode('DEFAULT')}
+              className={`px-4 py-2 text-xs font-bold rounded-lg transition-all whitespace-nowrap cursor-pointer ${filterMode === 'DEFAULT' ? 'bg-[#C5A059] text-black shadow-md' : 'text-gray-400 hover:text-white hover:bg-[#222]'}`}
             >
-              Hoje
+              Mês Atual
             </button>
             <button
-              onClick={() => handlePresetChange('THIS_WEEK')}
-              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all whitespace-nowrap cursor-pointer ${datePreset === 'THIS_WEEK' ? 'bg-[#C5A059] text-black shadow-md' : 'text-gray-400 hover:text-white hover:bg-[#222]'}`}
+              onClick={() => setFilterMode('CLOSED_WEEK')}
+              className={`px-4 py-2 text-xs font-bold rounded-lg transition-all whitespace-nowrap cursor-pointer ${filterMode === 'CLOSED_WEEK' ? 'bg-[#C5A059] text-black shadow-md' : 'text-gray-400 hover:text-white hover:bg-[#222]'}`}
             >
-              Esta Semana
+              Semana Fechada
             </button>
             <button
-              onClick={() => handlePresetChange('THIS_MONTH')}
-              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all whitespace-nowrap cursor-pointer ${datePreset === 'THIS_MONTH' ? 'bg-[#C5A059] text-black shadow-md' : 'text-gray-400 hover:text-white hover:bg-[#222]'}`}
+              onClick={() => setFilterMode('CUSTOM')}
+              className={`px-4 py-2 text-xs font-bold rounded-lg transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${filterMode === 'CUSTOM' ? 'bg-[#C5A059] text-black shadow-md' : 'text-gray-400 hover:text-white hover:bg-[#222]'}`}
             >
-              Este Mês
+              <Calendar size={14} /> Período Personalizado
             </button>
-            <button
-              onClick={() => handlePresetChange('LAST_MONTH')}
-              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all whitespace-nowrap cursor-pointer ${datePreset === 'LAST_MONTH' ? 'bg-[#C5A059] text-black shadow-md' : 'text-gray-400 hover:text-white hover:bg-[#222]'}`}
-            >
-              Mês Anterior
-            </button>
-            <button
-              onClick={() => handlePresetChange('ALL')}
-              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all whitespace-nowrap cursor-pointer ${datePreset === 'ALL' ? 'bg-[#C5A059] text-black shadow-md' : 'text-gray-400 hover:text-white hover:bg-[#222]'}`}
-            >
-              Tudo
-            </button>
+            {filterMode !== 'DEFAULT' && (
+              <button
+                onClick={() => setFilterMode('DEFAULT')}
+                className="ml-2 px-3 py-2 text-xs font-bold rounded-lg transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 text-red-400 hover:text-red-300 hover:bg-red-500/10 border border-transparent hover:border-red-500/30"
+              >
+                <Filter size={14} /> Limpar Filtro
+              </button>
+            )}
           </div>
+          
+          <div className="flex items-center gap-2 border-t lg:border-t-0 lg:border-l border-[#333] pt-2 lg:pt-0 lg:pl-3 flex-1">
+            {filterMode === 'CLOSED_WEEK' && (
+              <div className="flex items-center justify-between w-full lg:w-auto gap-3">
+                <button 
+                  onClick={() => setClosedWeekOffset(o => o + 1)}
+                  className="p-1.5 bg-[#222] text-gray-300 hover:text-white hover:bg-[#333] rounded-lg cursor-pointer"
+                  title="Semana Anterior"
+                >
+                  <span className="text-lg leading-none transform rotate-90 inline-block font-bold">❮</span>
+                </button>
+                <span className="text-xs font-bold text-[#C5A059] text-center min-w-[150px]">
+                  {startDate && endDate ? `${format(parseISO(startDate), "dd/MM")} até ${format(parseISO(endDate), "dd/MM")}` : ''}
+                </span>
+                <button 
+                  disabled={closedWeekOffset === 1}
+                  onClick={() => setClosedWeekOffset(o => Math.max(1, o - 1))}
+                  className={`p-1.5 rounded-lg ${closedWeekOffset === 1 ? 'text-gray-600 bg-[#111] cursor-not-allowed' : 'bg-[#222] text-gray-300 hover:text-white hover:bg-[#333] cursor-pointer'}`}
+                  title="Semana Seguinte"
+                >
+                  <span className="text-lg leading-none transform -rotate-90 inline-block font-bold">❯</span>
+                </button>
+              </div>
+            )}
 
-          <div className="flex items-center gap-2 border-t lg:border-t-0 lg:border-l border-[#333] pt-2 lg:pt-0 lg:pl-3">
-            <div className="flex items-center gap-1.5 text-xs text-gray-300">
-              <Calendar size={14} className="text-[#C5A059] shrink-0" />
-              <input 
-                type="date"
-                value={startDate}
-                onChange={(e) => {
-                  setStartDate(e.target.value);
-                  setDatePreset('CUSTOM');
-                }}
-                className="bg-[#1A1A1A] text-white border border-[#333] rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-[#C5A059] cursor-pointer"
-              />
-              <span className="text-gray-500">até</span>
-              <input 
-                type="date"
-                value={endDate}
-                onChange={(e) => {
-                  setEndDate(e.target.value);
-                  setDatePreset('CUSTOM');
-                }}
-                className="bg-[#1A1A1A] text-white border border-[#333] rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-[#C5A059] cursor-pointer"
-              />
-            </div>
+            {filterMode === 'CUSTOM' && (
+              <div className="flex items-center gap-2 w-full lg:w-auto justify-between lg:justify-start">
+                <input 
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  className="bg-[#1A1A1A] text-white border border-[#333] rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-[#C5A059] cursor-pointer"
+                />
+                <span className="text-gray-500 text-xs">até</span>
+                <input 
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  className="bg-[#1A1A1A] text-white border border-[#333] rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-[#C5A059] cursor-pointer"
+                />
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -286,9 +301,9 @@ export default function AdminRelatorios() {
               <DollarSign size={24} />
             </div>
             <div>
-              <p className="text-xs font-bold text-[#555] uppercase tracking-wider">Faturamento ({datePreset === 'THIS_MONTH' ? 'Mês' : 'Período'})</p>
+              <p className="text-xs font-bold text-[#555] uppercase tracking-wider">Faturamento ({filterMode === 'DEFAULT' ? 'Mês' : 'Período'})</p>
               <h3 className="text-2xl font-bold text-white mt-1">R$ {currentPeriodIncome.toFixed(2)}</h3>
-              {datePreset === 'THIS_MONTH' && (
+              {filterMode === 'DEFAULT' && (
                 <p className="text-xs text-[#777] mt-1">
                   {lastMonthIncome > 0 ? (
                      <span className={currentPeriodIncome >= lastMonthIncome ? 'text-green-500' : 'text-red-500'}>
@@ -319,7 +334,7 @@ export default function AdminRelatorios() {
               <Calendar size={24} />
             </div>
             <div>
-              <p className="text-xs font-bold text-[#555] uppercase tracking-wider">Agendamentos ({datePreset === 'THIS_MONTH' ? 'Mês' : 'Período'})</p>
+              <p className="text-xs font-bold text-[#555] uppercase tracking-wider">Agendamentos ({filterMode === 'DEFAULT' ? 'Mês' : 'Período'})</p>
               <h3 className="text-2xl font-bold text-white mt-1">{filteredAppointments.length}</h3>
               <p className="text-xs text-[#777] mt-1">{completedAppointments} concluídos</p>
             </div>
